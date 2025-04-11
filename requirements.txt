@@ -1,0 +1,18 @@
+# Base requirements
+typer>=0.9.0 # For CLI
+python-dotenv>=0.21.0 # For loading environment variables
+
+# LLM Interaction (placeholder - may change based on LLMInterface implementation)
+openai>=1.0.0 # Or the specific library used by LLMInterface
+requests>=2.28.0 # If LLMInterface uses requests for proxy/API calls
+
+# Utilities
+tiktoktoken>=0.4.0 # For token estimation
+
+# Web UI
+streamlit>=1.30.0 # For the web interface
+
+pydantic>=2.0.0
+pytest>=7.0.0
+typing-extensions>=4.0.0
+typer[all] 

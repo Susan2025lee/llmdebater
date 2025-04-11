@@ -1,0 +1,4 @@
+report_file,evaluator,date,structure_score,analysis_score,evidence_score,reasoning_score,clarity_score,total_score,comments
+data/reports/xiaomi_brandloyalty_cursor.md,Expert1,2025-04-10,14,13,12,14,15,68,"Good structure but lacks depth in analysis and sufficient evidence. Reasoning is generally sound but could benefit from more specific data points."
+data/reports/xiaomi_brandloyalty_gemini2.5.md,Expert1,2025-04-10,16,16,15,15,16,78,"Well-structured with strong analysis and good use of evidence. A few minor logical gaps but overall solid reasoning and clear presentation."
+data/reports/xiaomi_brandloyalty_grok3.md,Expert1,2025-04-10,15,14,13,14,15,71,"Good structure and clear writing, but relies on estimates and lacks concrete data in some areas. Analysis is thorough but could be deeper in places." 
