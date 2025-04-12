@@ -69,6 +69,9 @@ This task list reflects the three-agent system (Question, Answer, Orchestrator) 
     *   [x] **T4.6.3:** Create `streamlit_app.py` with UI elements (uploaders, inputs, button).
     *   [x] **T4.6.4:** Implement agent/orchestrator initialization and invocation in Streamlit app.
     *   [x] **T4.6.5:** Implement results display logic (step-by-step) in Streamlit app.
+    *   [x] **T4.6.6:** Implement message auto-scrolling functionality with JavaScript.
+    *   [x] **T4.6.7:** Create messaging-style UI with directional message alignment.
+    *   [x] **T4.6.8:** Implement responsive chat container sizing.
 *   [x] **T4.7:** Update `README.md` with instructions for running Streamlit app.
 
 **Phase 5: Future Development Planning**

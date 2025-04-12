@@ -16,7 +16,8 @@ qa_agent_system/
 ├── file_structure.md       # This file
 ├── requirements.txt        # Includes streamlit
 ├── main.py                 # CLI entry point (Typer commands)
-├── streamlit_app.py        # Web UI entry point (Streamlit app)
+├── streamlit_app.py        # Web UI entry point (Streamlit app with enhanced chat interface)
+├── auto_scroll.py          # Auto-scroll functionality for Streamlit chat container
 ├── src/
 │   ├── __init__.py
 │   ├── core/
@@ -58,6 +59,7 @@ qa_agent_system/
 *   **`streamlit_app.py`**: Added a new file in the root for the Streamlit Web UI.
 *   Documentation files updated to reflect the inclusion of the Web UI.
 *   `Orchestrator` now designed to return results for consumption by different interfaces (CLI, UI).
+*   **`auto_scroll.py`**: Added a new file in the root for auto-scroll functionality.
 
 ```
 arqj/
@@ -114,4 +116,9 @@ arqj/
 *   `tests/` mirrors the `src/` structure for clear test organization.
 *   `data/` holds sample reports and potentially human evaluation results used for testing and validation.
 *   `scripts/` can contain utility scripts, like the one for running batch evaluations.
+*   Configuration (like API keys) is kept separate (`.env`, `config.py`) and out of version control (`.gitignore`). We use the existing `config.json` and proxy settings from `interactive_chat.py`.
+*   **`streamlit_app.py`**: Added a new file in the root for the Streamlit Web UI.
+*   **`auto_scroll.py`**: Added a new file in the root for auto-scroll functionality.
+*   **`streamlit_app.py`** implements a user-friendly web interface with a messaging-style chat layout and auto-scrolling functionality.
+*   **`auto_scroll.py`** contains the JavaScript-based auto-scrolling solution for the Streamlit chat interface.
 *   Configuration (like API keys) is kept separate (`.env`, `config.py`) and out of version control (`.gitignore`). We use the existing `config.json` and proxy settings from `interactive_chat.py`. 

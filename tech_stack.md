@@ -17,6 +17,9 @@ This document outlines the proposed technologies for building the simplified Dir
         *   **CLI Framework:** Typer.
     *   **Web UI:**
         *   **Web Framework:** Streamlit.
+        *   **Frontend Enhancement:** Embedded CSS/JavaScript for custom UI styling and auto-scrolling
+        *   **UI Styling:** Custom CSS for messaging-style interface with directional message alignment
+        *   **Dynamic Behavior:** JavaScript for reliable cross-context auto-scrolling
 
 *   **Dependency Management:**
     *   **pip** with `requirements.txt`.

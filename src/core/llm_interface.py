@@ -3,6 +3,7 @@ import sys
 import json
 from typing import Dict, List, Optional, Any, Union
 from openai import OpenAI
+from dotenv import load_dotenv  # Import load_dotenv
 
 # Add the project root to the Python path if needed
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -13,22 +14,26 @@ if project_root not in sys.path:
 # Import ModelManager from project root
 from model_manager import ModelManager
 
+# Load environment variables from .env file
+load_dotenv()
+
 class LLMInterface:
     """
     Interface for interacting with LLMs, specifically configured for OpenAI models
-    with proxy settings behind a firewall.
+    with optional proxy settings.
     
     This class handles ONLY the communication with LLM APIs, providing a consistent
     interface regardless of the underlying model being used.
     
     Key features:
+    - Conditionally applies proxy settings based on USE_LLM_PROXY environment variable.
     - Automatically detects and adapts to model-specific limitations
     - Converts system messages to user messages for models that don't support system roles
     - Handles temperature restrictions for models with fixed temperature requirements
     - Provides a consistent API across different OpenAI models
     """
     
-    # OpenAI proxy configuration from InteractiveChat
+    # OpenAI proxy configuration (used if USE_LLM_PROXY is True)
     OPENAI_PROXY = {
         "http": "http://testai:testai@192.168.1.7:6666",
         "https": "http://testai:testai@192.168.1.7:6666"
@@ -40,7 +45,7 @@ class LLMInterface:
     
     def __init__(self, config_path: Optional[str] = None, model_key: str = "gpt-o1-mini"):
         """
-        Initialize the LLM interface with specified configuration.
+        Initialize the LLM interface with specified configuration and conditional proxy.
         
         Args:
             config_path: Path to the config.json file, if None will use default location
@@ -50,7 +55,7 @@ class LLMInterface:
         self.model_manager = ModelManager(config_path)
         
         # Select the model to use
-        self.current_model = model_key  # Default to gpt-o1-mini as used in the config
+        self.current_model = model_key
         self.current_model_config = self.model_manager.get_model_config(self.current_model)
         
         if not self.current_model_config:
@@ -61,11 +66,27 @@ class LLMInterface:
         if self.current_model_config.get("provider") != "openai":
             raise ValueError(f"Model '{model_key}' is not an OpenAI model. Provider: {self.current_model_config.get('provider')}")
         
-        # Set up proxy for OpenAI
-        os.environ["HTTP_PROXY"] = self.OPENAI_PROXY["http"]
-        os.environ["HTTPS_PROXY"] = self.OPENAI_PROXY["https"]
+        # --- Conditional Proxy Setup ---
+        use_proxy_str = os.getenv('USE_LLM_PROXY', 'True').lower()
+        use_proxy = use_proxy_str == 'true'
         
-        # Initialize OpenAI client
+        if use_proxy:
+            print("Configuring OpenAI client to use proxy...")
+            os.environ["HTTP_PROXY"] = self.OPENAI_PROXY["http"]
+            os.environ["HTTPS_PROXY"] = self.OPENAI_PROXY["https"]
+            # Note: The OpenAI client library often picks up these environment variables automatically.
+            # If direct instantiation with proxy is needed, it would look like:
+            # http_client = httpx.Client(proxies=self.OPENAI_PROXY)
+            # self.client = OpenAI(api_key=self.current_model_config["api_key"], http_client=http_client)
+        else:
+            print("Configuring OpenAI client WITHOUT proxy...")
+            # Ensure proxy variables are unset for this process if they existed before
+            os.environ.pop("HTTP_PROXY", None)
+            os.environ.pop("HTTPS_PROXY", None)
+            # self.client = OpenAI(api_key=self.current_model_config["api_key"]) # Initialize without proxy client
+        # --- End Conditional Proxy Setup ---
+
+        # Initialize OpenAI client (will pick up env vars if set, otherwise direct connection)
         self.client = OpenAI(api_key=self.current_model_config["api_key"])
         
         # Get actual model name to use with the API

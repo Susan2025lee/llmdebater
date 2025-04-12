@@ -1,9 +1,13 @@
 import re
 import logging # Import logging
-from src.core.answer_agent import ReportQAAgent
-from src.core.question_agent import QuestionAgent
-from src.core.llm_interface import LLMInterface
+from .answer_agent import ReportQAAgent
+from .question_agent import QuestionAgent
+from .llm_interface import LLMInterface
 from src.utils.file_handler import read_text_file
+import os
+import sys
+# Import exception and constants used
+from .answer_agent import ContextLengthError
 # We might need models later for structured input/output if we go beyond simple parsing
 # from src.core.models import ...
 
@@ -18,18 +22,20 @@ class Orchestrator:
 
     def __init__(self, question_agent: QuestionAgent, answer_agent: ReportQAAgent, llm_interface: LLMInterface, max_follow_ups: int = 2):
         """
-        Initializes the Orchestrator.
-
-        Args:
-            question_agent: An instance of the QuestionAgent.
-            answer_agent: An instance of the ReportQAAgent.
-            llm_interface: An instance of the LLMInterface for Orchestrator's own calls.
-            max_follow_ups: Maximum number of follow-up attempts per initial question.
+        Initializes the Orchestrator with state for interactive processing.
         """
         self.question_agent = question_agent
         self.answer_agent = answer_agent
         self.llm_interface = llm_interface
         self.max_follow_ups = max_follow_ups
+        
+        # State variables
+        self.initial_questions: list | None = None
+        self.current_q_index: int = -1
+        self.question_doc_path: str | None = None
+        self.answer_doc_content: str | None = None # Pre-load answer content
+        self.num_initial_questions_req: int = 0
+
         # Updated satisfaction prompt to always ask for a reason
         self.satisfaction_prompt_template = """
 You are an evaluation agent. Your task is to assess if the provided 'Answer' adequately and completely addresses the 'Original Question'. Do not use external knowledge. Base your assessment *only* on the text provided in the 'Answer'.
@@ -63,162 +69,214 @@ Generate a follow-up question to elicit the missing information needed to satisf
 Follow-up Question:
 """
 
-    def run_interaction(self, question_doc_path: str, answer_doc_path: str, num_initial_questions: int = 5) -> list:
-        """
-        Runs the main interaction loop for all questions and returns the results.
-        Each result includes the final satisfaction status and reason.
-        
-        Returns:
-            A list of dictionaries, where each dictionary contains:
-            {'initial_question': str, 'final_answer': str, 'history': list, 
-             'satisfaction_status': str, 'satisfaction_reason': str | None}
-        """
-        all_results = [] # Restore results list
-
+    def load_answer_doc(self, answer_doc_path: str):
+        """Loads and stores the answer document content. Public method."""
         try:
-            question_doc_content = read_text_file(question_doc_path)
-            initial_questions = self.question_agent.generate_questions_from_content(question_doc_content, num_questions=num_initial_questions)
-            if not initial_questions:
-                return [] # Return empty list
-
-            answer_doc_content = read_text_file(answer_doc_path)
-
-        except FileNotFoundError as e:
-            logger.error(f"File not found during setup: {e}") # Log instead of print
-            raise e 
+            self.answer_doc_content = read_text_file(answer_doc_path)
+            if not self.answer_doc_content:
+                 raise ValueError(f"Answer document is empty: {answer_doc_path}")
+            logger.info(f"Successfully loaded answer document: {answer_doc_path}")
         except Exception as e:
-            logger.error(f"An unexpected error occurred during setup: {e}", exc_info=True) # Log
-            raise e # Re-raise for Streamlit
+            logger.error(f"Failed to load answer document {answer_doc_path}: {e}", exc_info=True)
+            raise # Re-raise for the caller to handle
 
-        for i, question in enumerate(initial_questions):
-            try:
-                final_answer, conversation_history, satisfaction_status, satisfaction_reason = self._process_single_question(question, answer_doc_content)
+    def generate_initial_questions(self, question_doc_path: str, num_questions: int) -> list[str]:
+        """Generates and returns initial questions. Public method."""
+        self.question_doc_path = question_doc_path
+        self.num_initial_questions_req = num_questions
+        if not self.question_doc_path:
+             raise ValueError("Question document path not set before generating questions.")
+        try:
+            logger.info(f"Generating {self.num_initial_questions_req} initial questions from {self.question_doc_path}...")
+            question_doc_content = read_text_file(self.question_doc_path)
+            if not question_doc_content:
+                raise ValueError(f"Question document is empty: {self.question_doc_path}")
 
-                all_results.append({
-                    'initial_question': question,
-                    'final_answer': final_answer,
-                    'history': conversation_history,
-                    'satisfaction_status': satisfaction_status,
-                    'satisfaction_reason': satisfaction_reason
-                })
-
-            except Exception as e:
-                logger.error(f"Error processing question {i+1} (\"{question}\"): {e}", exc_info=True)
-                all_results.append({
-                    'initial_question': question,
-                    'final_answer': f"ERROR processing this question: {e}",
-                    'history': [],
-                    'satisfaction_status': 'Error',
-                    'satisfaction_reason': str(e)
-                })
-                continue 
-
-        return all_results # Return the collected results
-
-    def _process_single_question(self, initial_question: str, answer_doc_content: str) -> tuple[str, list, str, str | None]:
-        """
-        Handles the cycle of getting an answer, checking satisfaction, and potentially following up.
-        Returns the final answer, history, satisfaction status (str), and reason (str|None).
-        """
-        current_question = initial_question
-        conversation_history = []
-        final_answer = "No satisfactory answer found within follow-up limits."
-        final_satisfaction_status = "Unknown"
-        final_satisfaction_reason = None
-
-        for attempt in range(self.max_follow_ups + 1):
-            answer = self.answer_agent.ask_with_content(current_question, answer_doc_content)
-
-            conversation_history.append({"question": current_question, "answer": answer})
-
-            is_satisfied, reason = self._check_satisfaction(current_question, answer)
-            final_satisfaction_status = "Satisfied" if is_satisfied else "Unsatisfied"
-            final_satisfaction_reason = reason # Store the reason
-
-            if is_satisfied:
-                final_answer = answer
-                break
-
-            if attempt < self.max_follow_ups:
-                follow_up_question = self._generate_follow_up(current_question, answer)
-                if not follow_up_question:
-                    break
-                current_question = follow_up_question
+            self.initial_questions = self.question_agent.generate_questions_from_content(
+                question_doc_content, num_questions=self.num_initial_questions_req
+            )
+            self.current_q_index = -1 # Reset index after generation
+            if not self.initial_questions:
+                logger.warning("Question Agent returned no initial questions.")
+                self.initial_questions = [] # Ensure it's an empty list, not None
             else:
-                pass # Just finish the loop
+                logger.info(f"Generated {len(self.initial_questions)} initial questions.")
+            return self.initial_questions # Return the list
 
-        return final_answer, conversation_history, final_satisfaction_status, final_satisfaction_reason
-
-    def _check_satisfaction(self, question: str, answer: str) -> tuple[bool, str | None]:
-        """
-        Uses the LLMInterface to check if the answer satisfies the question.
-        Assumes the prompt now always asks for a reason.
-        """
-        prompt = self.satisfaction_prompt_template.format(question=question, answer=answer)
-        try:
-            response_text = self.llm_interface.generate_response(prompt)
-            logger.info(f"[_check_satisfaction] Raw LLM Response: {response_text[:200]}...")
         except Exception as e:
-            logger.error(f"Error calling LLM for satisfaction check: {e}", exc_info=True)
-            return False, f"LLM call failed during satisfaction check: {e}"
+            logger.error(f"Failed to generate initial questions: {e}", exc_info=True)
+            self.initial_questions = [] # Set to empty on error
+            raise # Re-raise for the caller to handle
 
-        try:
-            assessment_match = re.search(r"Assessment:\s*(Satisfied|Unsatisfied)", response_text, re.IGNORECASE)
-            if not assessment_match:
-                logger.warning(f"Could not parse Assessment from satisfaction response: {response_text}")
-                return False, "Could not parse Assessment from LLM response."
-                
-            is_satisfied = assessment_match.group(1).lower() == "satisfied"
-
-            reason = None
-            # Always try to parse the reason now
-            reason_match = re.search(r"Reason:\s*(.*)", response_text, re.IGNORECASE | re.DOTALL)
-            if reason_match:
-                reason = reason_match.group(1).strip()
-            else:
-                logger.warning(f"Could not parse Reason from response: {response_text}")
-                reason = "Could not parse Reason from LLM response."
-                
-            return is_satisfied, reason
-        except Exception as e:
-            logger.error(f"Error parsing satisfaction response: {e}. Raw response: {response_text}", exc_info=True)
-            return False, f"Error parsing satisfaction LLM response: {e}"
-
-    def _generate_follow_up(self, question: str, answer: str) -> str | None:
+    def check_satisfaction(self, question: str, answer: str) -> tuple[bool, str | None]:
         """
-        Uses the LLMInterface to generate a follow-up question.
+        Checks if the answer satisfies the question using the LLM.
 
         Args:
-            question: The original question (or previous follow-up).
+            question: The question asked.
+            answer: The answer received.
+
+        Returns:
+            A tuple containing:
+            - is_satisfied (bool): True if the answer is satisfactory, False otherwise.
+            - reason (str | None): The explanation provided by the LLM, or None if parsing fails.
+        """
+        # logger.debug(f"Checking satisfaction for Q: {question} A: {answer[:100]}...")
+        prompt = self.satisfaction_prompt_template.format(question=question, answer=answer)
+        try:
+            # Use a simple generation call, assuming the model can follow the format
+            response = self.llm_interface.generate_response(prompt)
+            # logger.debug(f"Satisfaction LLM Raw Response: {response}")
+
+            # Basic parsing (Consider more robust parsing, e.g., regex or Pydantic)
+            assessment_match = re.search(r"Assessment:\s*(Satisfied|Unsatisfied)", response, re.IGNORECASE)
+            reason_match = re.search(r"Reason:\s*(.*)", response, re.DOTALL)
+
+            is_satisfied = False
+            if assessment_match and assessment_match.group(1).lower() == "satisfied":
+                is_satisfied = True
+
+            reason = reason_match.group(1).strip() if reason_match else None
+
+            # logger.info(f"Satisfaction Check Result: {is_satisfied}, Reason: {reason}")
+            return is_satisfied, reason
+
+        except Exception as e:
+            logger.error(f"Error during satisfaction check LLM call or parsing: {e}", exc_info=True)
+            return False, f"Error during satisfaction check: {e}" # Return False and error message as reason
+
+    def generate_follow_up(self, question: str, answer: str) -> str | None:
+        """
+        Generates a follow-up question if the answer is unsatisfactory.
+
+        Args:
+            question: The original question.
             answer: The unsatisfactory answer.
 
         Returns:
-            The generated follow-up question as a string, or None if generation fails.
+            The generated follow-up question (str), or None if generation fails.
         """
+        # logger.debug(f"Generating follow-up for Q: {question} A: {answer[:100]}...")
         prompt = self.follow_up_prompt_template.format(question=question, answer=answer)
-        # T2.8: Implement LLM call (Uncommented)
         try:
-            response_text = self.llm_interface.generate_response(prompt)
-            logger.info(f"[_generate_follow_up] Raw LLM Response: {response_text[:200]}...") # Log truncated response
-        except Exception as e:
-             logger.error(f"Error calling LLM for follow-up generation: {e}", exc_info=True)
-             return None # Return None if LLM call fails
+            response = self.llm_interface.generate_response(prompt)
+            # logger.debug(f"Follow-up LLM Raw Response: {response}")
 
-        # T2.8: Implement robust parsing
-        try:
-            # Simple parsing assuming the question follows "Follow-up Question:"
-            match = re.search(r"Follow-up Question:\s*(.*)", response_text, re.IGNORECASE | re.DOTALL)
-            if match:
-                follow_up = match.group(1).strip()
-                # Basic validation: ensure it's not empty and maybe not identical to the input question?
-                if follow_up and follow_up.lower() != question.lower():
-                    return follow_up
-                else:
-                    logger.warning(f"Parsed empty follow-up or identical to original question. Raw: {response_text}")
-                    return None # Treat empty or identical follow-up as failure
-            else:
-                logger.warning(f"Could not parse valid follow-up question from: {response_text}")
-                return None
+            # Basic parsing: Assume the follow-up question is the main part of the response
+            # Find "Follow-up Question:" and take the text after it.
+            match = re.search(r"Follow-up Question:\s*(.*)", response, re.DOTALL | re.IGNORECASE)
+            follow_up_question = match.group(1).strip() if match else response.strip() # Fallback to whole response
+
+            if not follow_up_question:
+                 logger.warning("Follow-up generation returned an empty response.")
+                 return None
+            
+            # logger.info(f"Generated Follow-up: {follow_up_question}")
+            return follow_up_question
         except Exception as e:
-            logger.error(f"Error parsing follow-up response: {e}. Raw response: {response_text}", exc_info=True)
-            return None 
+            logger.error(f"Error during follow-up question generation LLM call: {e}", exc_info=True)
+            return None # Indicate failure 
+
+    def run_interaction(self, question_doc_path: str, answer_doc_path: str, num_initial_questions: int):
+        """
+        Runs the full orchestrated interaction loop: load docs, get initial questions,
+        process each question with potential follow-ups, and interact with the user.
+        """
+        try:
+            # 1. Load documents
+            print("Loading documents...")
+            self.load_answer_doc(answer_doc_path)
+            # Question doc is loaded inside generate_initial_questions
+            print("Documents loaded.")
+
+            # 2. Generate Initial Questions
+            print(f"Generating {num_initial_questions} initial questions from {os.path.basename(question_doc_path)}...")
+            initial_questions = self.question_agent.generate_questions(question_doc_path, num_initial_questions)
+            if not initial_questions:
+                print("No initial questions were generated. Exiting.")
+                return
+            print(f"Generated {len(initial_questions)} initial questions.")
+
+            # 3. Main Loop - Iterate through initial questions
+            for i, initial_q in enumerate(initial_questions):
+                print("\n" + "="*40)
+                print(f"Processing Initial Question {i+1}/{len(initial_questions)}: {initial_q}")
+                print("="*40)
+
+                current_question = initial_q
+                follow_up_count = 0
+                is_satisfied = False
+
+                # Inner loop: Ask -> Check -> Follow-up
+                while follow_up_count <= self.max_follow_ups:
+                    print(f"\nAttempt {follow_up_count + 1} (Max: {self.max_follow_ups + 1})")
+                    
+                    # Ask the current question (initial or follow-up)
+                    print(f"  Asking: {current_question}")
+                    answer = self.answer_agent.ask_with_content(current_question, self.answer_doc_content)
+                    print(f"  Received Answer: {answer}")
+
+                    # Check satisfaction
+                    print("  Checking answer satisfaction...")
+                    # Use the public method name found in the code
+                    is_satisfied, reason = self.check_satisfaction(current_question, answer)
+                    print(f"  Satisfaction: {'Satisfied' if is_satisfied else 'Unsatisfied'}")
+                    if reason:
+                        print(f"  Reason: {reason}")
+
+                    if is_satisfied:
+                        print("\nAnswer deemed satisfactory.")
+                        break # Exit inner loop for this initial question
+
+                    # If not satisfied and follow-ups remain
+                    if follow_up_count < self.max_follow_ups:
+                        follow_up_count += 1
+                        print(f"  Generating follow-up question (Attempt {follow_up_count}/{self.max_follow_ups})...")
+                        # Use the public method name found in the code
+                        follow_up_question = self.generate_follow_up(initial_q, answer) # Follow up based on original Q and last answer
+                        
+                        if follow_up_question:
+                            print(f"  Generated Follow-up: {follow_up_question}")
+                            current_question = follow_up_question # Set for next iteration
+                        else:
+                            print("  Failed to generate a follow-up question. Stopping follow-ups for this initial question.")
+                            break # Exit inner loop
+                    else:
+                        print(f"\nMaximum follow-up attempts ({self.max_follow_ups}) reached. Moving to next initial question.")
+                        break # Exit inner loop
+
+                # 4. User Interaction - Ask to continue after each initial question cycle
+                if i < len(initial_questions) - 1: # Don't ask after the last question
+                    while True:
+                        try:
+                            user_input = input("\nContinue with the next initial question? (y/n): ").lower().strip()
+                            if user_input == 'y':
+                                break
+                            elif user_input == 'n':
+                                print("Exiting interaction loop.")
+                                return # Exit the entire run_interaction method
+                            else:
+                                print("Invalid input. Please enter 'y' or 'n'.")
+                        except EOFError:
+                             print("\nDetected EOF. Exiting interaction loop.")
+                             return
+        
+        except FileNotFoundError as e:
+             print(f"Error: Input file not found. {e}", file=sys.stderr)
+             # Consider re-raising or handling more gracefully depending on CLI/UI needs
+        except IOError as e:
+             print(f"Error: Could not read input file. {e}", file=sys.stderr)
+        except ContextLengthError as e:
+             print(f"Error: Document content too long for processing. {e}", file=sys.stderr)
+        except ValueError as e: # Catch potential ValueErrors from agents/utils
+             print(f"Error: Invalid value or configuration. {e}", file=sys.stderr)
+        except RuntimeError as e: # Catch potential RuntimeErrors from agents
+             print(f"Error: Runtime issue during processing. {e}", file=sys.stderr)
+        except Exception as e:
+            # Catch-all for unexpected errors
+            print(f"An unexpected error occurred: {e}", file=sys.stderr)
+            logger.error("Unexpected error in run_interaction", exc_info=True)
+        finally:
+            print("\nInteraction loop finished.")
+
+# --- End of Class --- 

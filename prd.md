@@ -68,6 +68,10 @@ The primary goal is an interactive system where AI-generated questions probe a d
     *   Follow-up Question Generation (Input: Original Q, Unsatisfactory A; Output: New follow-up Q).
 *   **State Management (Orchestrator):** Needs to track current initial question, current follow-up question, retry counts, etc.
 *   **Context Window Management:** Even more critical now with Orchestrator LLM calls potentially needing Q+A context.
+*   **UI Considerations:**
+    *   **Web UI Style:** Messaging-style chat interface with left-aligned questions/orchestrator messages and right-aligned answers
+    *   **Auto-scrolling:** Reliable auto-scrolling mechanism for the chat container to ensure new messages are visible
+    *   **Responsive Design:** Chat container scales with viewport height for better user experience across devices
 
 **8. Evaluation Metrics (for the Project)**
 

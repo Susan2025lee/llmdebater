@@ -28,6 +28,9 @@ This plan covers the development of the Answer Agent, Question Agent, and the Or
         *   Agent/Orchestrator initialization.
         *   Call orchestrator and handle results.
         *   Implement step-by-step display logic using session state.
+        *   Create messaging-style chat interface with directional alignment.
+        *   Implement reliable auto-scrolling with cross-context JavaScript.
+        *   Build responsive container sizing for different screen sizes.
     *   Update `README.md` for Streamlit usage.
     *   **T4.1:** Conduct further end-to-end testing with diverse documents (CLI and Streamlit).
     *   **T4.2:** Explicitly test context limit handling for *all* LLM calls.
