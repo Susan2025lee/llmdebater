@@ -1,82 +1,81 @@
-# Task List: Question/Answer Orchestration System (Direct Context)
+# Task List: Multi-Agent Q&A Debate System
 
-This task list reflects the three-agent system (Question, Answer, Orchestrator) development plan.
+This task list documents the development of the multi-agent debate system.
 
 **Phase 1: Agent Foundations (COMPLETED)**
 
-*   [x] **T1.1:** ~~Initialize Git repository.~~
-*   [x] **T1.2:** ~~Set up virtual environment and dependency management.~~
-*   [x] **T1.3:** ~~Ensure `LLMInterface` is set up for `gpt-o3-mini` (proxy/API keys).~~
-*   [x] **T1.4:** ~~Verify/adapt `file_handler.py` for reading full content.~~
-*   [x] **T1.5:** ~~Design Answer Agent prompt V1 structure.~~
-*   [x] **T1.6:** ~~Implement `estimate_token_count` function.~~
-*   [x] **T1.7:** ~~Determine approximate token limit for `gpt-o3-mini`.~~
-*   [x] **T1.8:** ~~Implement core Answer Agent logic (`ask_question`, `ask_with_content` in `answer_agent.py`).~~
-*   [x] **T1.9:** ~~Write unit tests for `estimate_token_count`.~~
-*   [x] **T1.10:** ~~Write unit tests for Answer Agent logic.~~
-*   [x] **T1.11:** ~~Create basic interactive CLI for Answer Agent (`chat` command in `main.py`).~~
-*   [x] **T1.12:** ~~Design Question Agent prompt V1.~~
-*   [x] **T1.13:** ~~Implement `QuestionAgent` class (`src/core/question_agent.py`), including response parsing.~~
-*   [x] **T1.14:** ~~Write unit tests for `QuestionAgent`.~~
-*   [x] **T1.15:** ~~Create basic CLI for Question Agent (`generate-questions` command in `main.py`).~~
-*   [x] **T1.16:** ~~Update `README.md` for initial standalone agent CLIs.~~
+*   [x] **T1.1:** Initialize Git repository.
+*   [x] **T1.2:** Set up virtual environment and dependency management (`requirements.txt`).
+*   [x] **T1.3:** Implement `LLMInterface` for centralized LLM access.
+*   [x] **T1.4:** Implement `file_handler.py` for reading documents.
+*   [x] **T1.5:** Design Answer Agent prompt structure (`prompts.py`).
+*   [x] **T1.6:** Implement `estimate_token_count` function (`token_utils.py`).
+*   [x] **T1.7:** Implement core Answer Agent logic (`ReportQAAgent` in `answer_agent.py`).
+*   [x] **T1.8:** Write unit tests for `token_utils` and `answer_agent`.
+*   [x] **T1.9:** Design Question Agent prompt (`prompts.py`).
+*   [x] **T1.10:** Implement `QuestionAgent` class (`question_agent.py`).
+*   [x] **T1.11:** Write unit tests for `QuestionAgent`.
+*   [x] **T1.12:** Create initial CLI (`main.py`) for testing individual agents (now legacy).
 
-**Phase 2: Orchestrator Agent Development**
+**Phase 2: Orchestrator V1 & Initial UI (Completed, Now Legacy)**
 
-*   [x] **T2.1:** Design Orchestrator prompt V1 for Satisfaction Check.
-*   [x] **T2.2:** Design Orchestrator prompt V1 for Follow-up Question Generation.
-*   [x] **T2.3:** Create `src/core/orchestrator.py`.
-*   [x] **T2.4:** Implement `Orchestrator` class skeleton (`__init__`, method signatures).
-*   [x] **T2.5:** Implement Orchestrator initialization (accept Answer/Question agents).
-*   [x] **T2.6:** Implement Orchestrator's main loop logic (`run_interaction`):
-    *   Call Question Agent to get initial questions.
-    *   Loop through initial questions.
-*   [x] **T2.7:** Implement Orchestrator's inner loop logic:
-    *   Call Answer Agent to get answer for current question.
-    *   Call LLM for satisfaction check.
-    *   Parse satisfaction check response.
-    *   If unsatisfactory, call LLM for follow-up question.
-    *   Parse follow-up question response.
-    *   Handle retry limit.
-*   [x] **T2.8:** Implement Orchestrator LLM calls (satisfaction, follow-up) using `LLMInterface` (Note: Actual LLM calls are placeholders for now).
-*   [x] **T2.9:** Implement Orchestrator state management (current Q, retry count, etc.).
-*   [x] **T2.10:** Implement user interaction prompt (continue/stop).
-*   [x] **T2.11:** Create `tests/test_orchestrator.py`.
-*   [x] **T2.12:** Write unit tests for `Orchestrator` (mock agents, LLM calls, test loops, parsing).
+*   [x] **T2.1:** Implement V1 Orchestrator (`orchestrator.py`) for satisfaction/follow-up loop.
+*   [x] **T2.2:** Write tests for `orchestrator.py`.
+*   [x] **T2.3:** Integrate V1 Orchestrator into CLI (`main.py orchestrate`).
+*   [x] **T2.4:** Implement V1 Streamlit UI (`streamlit_app.py`) for V1 workflow.
 
-**Phase 3: CLI Integration & Full Workflow Testing**
+**Phase 3: V2 Multi-Agent Debate Core (COMPLETED)**
 
-*   [x] **T3.1:** Update `main.py` CLI: Add `orchestrate <q_doc_path> <a_doc_path>` command (using Typer).
-*   [x] **T3.2:** Implement logic in `main.py` to instantiate agents and orchestrator for the `orchestrate` command.
-*   [x] **T3.3:** Implement logic in `main.py` to call the Orchestrator's `run_interaction` method.
-*   [x] **T3.4:** Perform end-to-end testing using the `orchestrate` command (initial successful run).
-*   [ ] **T3.5:** Evaluate satisfaction check accuracy (human judgment - pending further runs).
-*   [ ] **T3.6:** Evaluate follow-up question quality (human judgment - pending further runs).
-*   [ ] **T3.7:** Evaluate overall workflow behavior (human judgment - pending further runs).
-*   [x] **T3.8:** Refine Orchestrator prompts (T2.1, T2.2) based on evaluation (pending T3.5-T3.7).
-*   [x] **T3.9:** Update `README.md` with instructions for `orchestrate` command and the overall system concept.
+*   [x] **T3.1:** Create `OrchestratorV2` class (`orchestrator_v2.py`).
+*   [x] **T3.2:** Implement `OrchestratorV2` initialization (1 QA, list of AAs).
+*   [x] **T3.3:** Implement `OrchestratorV2.run_debate_interaction` generator logic (generate questions, distribute to AAs, collect answers).
+*   [x] **T3.4:** Design prompt for answer synthesis/debate (`prompts.py`).
+*   [x] **T3.5:** Implement LLM call within `OrchestratorV2` for synthesis.
+*   [x] **T3.6:** Implement output file writing in `OrchestratorV2`.
+*   [x] **T3.7:** Write unit tests for `OrchestratorV2` (`test_orchestrator_v2.py`).
+*   [x] **T3.8:** Add CLI command (`main.py orchestrate_v2`) for V2 workflow (now secondary usage).
 
-**Phase 4: Refinement & Evaluation**
+**Phase 4: V2 Streamlit UI & Finalization (COMPLETED)**
 
-*   [ ] **T4.1:** Conduct further end-to-end testing with various documents (CLI and Streamlit).
-*   [ ] **T4.2:** Test context limit handling for *all* LLM calls (agents + orchestrator).
-*   [ ] **T4.3:** Measure performance/latency for the full orchestrated loop.
-*   [ ] **T4.4:** *(Optional)* Add more sophisticated error handling or state display.
-*   [x] **T4.5:** Finalize documentation (CLI and Streamlit UI documented in README).
-*   [x] **T4.6:** Implement Streamlit UI (`streamlit_app.py`):
-    *   [x] **T4.6.1:** Refactor `Orchestrator.run_interaction` to return results.
-    *   [x] **T4.6.2:** Add `streamlit` to `requirements.txt`.
-    *   [x] **T4.6.3:** Create `streamlit_app.py` with UI elements (uploaders, inputs, button).
-    *   [x] **T4.6.4:** Implement agent/orchestrator initialization and invocation in Streamlit app.
-    *   [x] **T4.6.5:** Implement results display logic (step-by-step) in Streamlit app.
-    *   [x] **T4.6.6:** Implement message auto-scrolling functionality with JavaScript.
-    *   [x] **T4.6.7:** Create messaging-style UI with directional message alignment.
-    *   [x] **T4.6.8:** Implement responsive chat container sizing.
-*   [x] **T4.7:** Update `README.md` with instructions for running Streamlit app.
+*   [x] **T4.1:** Create `streamlit_app_v2.py` based on V1 UI.
+*   [x] **T4.2:** Modify V2 UI for multiple answer doc uploads and output filename config.
+*   [x] **T4.3:** Implement `streamlit_app_v2.py` backend:
+    *   [x] Handle file uploads and temp file creation.
+    *   [x] Instantiate all agents and `OrchestratorV2`.
+    *   [x] Call `OrchestratorV2.run_debate_interaction`.
+    *   [x] Implement temp file cleanup.
+*   [x] **T4.4:** Implement progressive chat display in V2 UI by iterating through the `OrchestratorV2` generator.
+*   [x] **T4.5:** Implement custom styling for V2 chat messages (colors, alignment, width, system message format).
+*   [x] **T4.6:** Add unit tests for `streamlit_app_v2.py` setup and basic interaction logic.
+*   [x] **T4.7:** Resolve all test failures and ensure `pytest` passes.
+*   [x] **T4.8:** Update `README.md` to reflect final V2 system and usage.
+*   [x] **T4.9:** Update `prd.md` to reflect final V2 system requirements.
+*   [x] **T4.10:** Update `task_list.md` (this file) to reflect completed steps.
 
-**Phase 5: Future Development Planning**
+**Phase 5: Future Considerations**
 
-*   [ ] **T5.1:** Plan RAG implementation for all agents.
-*   [ ] **T5.2:** Plan Orchestrator logic improvements (satisfaction, follow-up, user override).
-*   [ ] **T5.3:** Gather user feedback.
-*   [ ] **T5.4:** Address bugs. 
+*   [ ] **T5.1:** Plan RAG implementation for agents to handle larger documents.
+*   [ ] **T5.2:** Explore more advanced debate/synthesis strategies.
+*   [ ] **T5.3:** Consider user feedback mechanisms within the UI.
+*   [ ] **T5.4:** Investigate support for different/newer LLM models.
+
+**Phase 6: V3 Multi-Round Debate Implementation (NEW)**
+
+*   [x] **T6.1:** Design prompts for `AnswerAgentV3.participate_in_debate` method.
+*   [x] **T6.2:** Design prompt for `OrchestratorV3` post-debate synthesis.
+*   [x] **T6.3:** Implement/Modify `AnswerAgentV3` (or `ReportQAAgent`) to include `participate_in_debate` method using new prompt.
+*   [x] **T6.6:** Write unit tests for `AnswerAgentV3` (`test_answer_agent_v3.py`).
+*   [x] **T6.4:** Implement `OrchestratorV3` class (`orchestrator_v3.py`).
+*   [x] **T6.5:** Implement `OrchestratorV3.run_full_debate` generator logic:
+    *   [x] Initial question generation.
+    *   [x] Round 0: Call `ask_question` on `AnswerAgentV3` instances, yield flattened output.
+    *   [x] Debate Rounds Loop (1 to `max_debate_rounds`):
+        *   [x] Call `participate_in_debate` on agents, passing history.
+        *   [x] Yield flattened output for each agent turn.
+        *   [x] Update debate history.
+    *   [x] Call internal synthesis method.
+    *   [x] Yield flattened synthesis output.
+    *   [x] Write final Q/A to file.
+*   [x] **T6.7:** Write unit tests for `OrchestratorV3` (`test_orchestrator_v3.py`), mocking agents and focusing on loop logic and flattened yield format.
+*   [x] **T6.8:** Add CLI command (`main.py orchestrate_v3`) to invoke the V3 workflow.
+*   [x] **T6.9:** Update documentation (`prd.md`, `file_structure.md`, `README.md`, `implementation_plan.md`, `agent_interaction_v3.md`) to include V3 details. 

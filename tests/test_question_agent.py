@@ -40,12 +40,14 @@ def mock_dependencies_q():
     ):
         mock_llm_instance = MockLLMInterface.return_value
         mock_llm_instance.generate_chat_response = MagicMock()
+        mock_llm_instance.model_name = MODEL_NAME  # <--- Configure model_name here
         yield mock_llm_instance, mock_estimate, mock_read
 
 @pytest.fixture
 def q_agent(mock_dependencies_q):
     """Provides an instance of QuestionAgent with mocked dependencies."""
-    return QuestionAgent()
+    mock_llm, _, _ = mock_dependencies_q # Unpack the LLM mock
+    return QuestionAgent(llm_interface=mock_llm)
 
 # --- Test Cases --- #
 

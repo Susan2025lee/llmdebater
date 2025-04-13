@@ -1,44 +1,48 @@
-# High-Level Implementation Plan: Question/Answer Orchestration System (Direct Context)
+# High-Level Implementation Plan: Multi-Agent Q&A Debate System
 
-This plan covers the development of the Answer Agent, Question Agent, and the Orchestrator Agent, focusing on the interactive workflow using the direct context approach and providing CLI and Web UI access.
+This plan summarizes the development of the multi-agent Q&A debate system, culminating in the V2 Streamlit application.
 
 **Phase 1: Agent Foundations (COMPLETED)**
 
-*   **Goal:** Set up project, implement report reading, develop core answer generation logic (Answer Agent) and question generation logic (Question Agent) using direct LLM context, build basic standalone CLIs for testing.
-*   **Key Activities:** Environment setup, file handling, Answer Agent prompt design, `AnswerAgent` implementation, Question Agent prompt design, `QuestionAgent` implementation, token limit checks for both, unit tests for both, basic CLIs (`chat`, `generate-questions`) in `main.py`.
+*   **Goal:** Set up project structure, implement core file/LLM handling, develop foundational Question and Answer agents.
+*   **Key Activities:** Environment setup, `LLMInterface`, `file_handler`, `token_utils`, `ReportQAAgent`, `QuestionAgent`, unit tests, basic prompts.
 
-**Phase 2: Orchestrator Agent Development (COMPLETED)**
+**Phase 2: Orchestrator V1 & Initial UI (Completed, Now Legacy)**
 
-*   **Goal:** Develop the Orchestrator Agent to manage the core interactive loop, including LLM-based satisfaction checks and follow-up question generation.
-*   **Key Activities:** Design prompts (Satisfaction Check, Follow-up), Implement `Orchestrator` class (`src/core/orchestrator.py`) including loop logic, LLM calls (satisfaction/follow-up), response parsing, state management. Write unit tests for `Orchestrator` (mocking agents and LLM calls).
+*   **Goal:** Develop the initial interactive workflow (V1) based on satisfaction checks and follow-ups.
+*   **Key Activities:** Implement `Orchestrator` V1, design related prompts, integrate into CLI (`main.py orchestrate`), build initial Streamlit UI (`streamlit_app.py`).
 
-**Phase 3: CLI Integration & Initial Workflow Testing (COMPLETED)**
+**Phase 3: V2 Multi-Agent Debate Core (COMPLETED)**
 
-*   **Goal:** Integrate the Orchestrator into the main CLI (`typer`) and test the end-to-end interactive console workflow.
-*   **Key Activities:** Update `main.py` CLI: Add `orchestrate` command, instantiate agents/orchestrator, call orchestrator. Perform end-to-end testing with the `orchestrate` command using sample documents. Verify interactive loop (initial Qs -> answers -> satisfaction -> follow-ups -> user prompt -> next Q/stop). Perform initial evaluation of satisfaction/follow-up quality. Update `README.md` for CLI usage.
+*   **Goal:** Implement the core logic for the multi-agent debate workflow.
+*   **Key Activities:** Implement `OrchestratorV2` (initialize multiple AAs, distribute questions, collect answers, synthesize final answer via LLM), design synthesis prompt, implement output file writing, write unit tests for `OrchestratorV2`, add V2 CLI command (`main.py orchestrate_v2`).
 
-**Phase 4: Web UI & Refinement (In Progress)**
+**Phase 4: V2 Streamlit UI & Finalization (COMPLETED)**
 
-*   **Goal:** Implement a Streamlit web interface for the orchestrated workflow. Refine agents and orchestrator based on further testing.
+*   **Goal:** Build the primary Streamlit UI for the V2 debate workflow and finalize the project.
 *   **Key Activities:**
-    *   Refactor `Orchestrator` to return results for batch processing by UI.
-    *   Add `streamlit` dependency.
-    *   Implement `streamlit_app.py`:
-        *   UI components (file upload, parameters, buttons).
-        *   Agent/Orchestrator initialization.
-        *   Call orchestrator and handle results.
-        *   Implement step-by-step display logic using session state.
-        *   Create messaging-style chat interface with directional alignment.
-        *   Implement reliable auto-scrolling with cross-context JavaScript.
-        *   Build responsive container sizing for different screen sizes.
-    *   Update `README.md` for Streamlit usage.
-    *   **T4.1:** Conduct further end-to-end testing with diverse documents (CLI and Streamlit).
-    *   **T4.2:** Explicitly test context limit handling for *all* LLM calls.
-    *   **T4.3:** Performance testing (measure latency).
-    *   **T4.4:** *(Optional)* Add more sophisticated error handling or state display.
-    *   **T4.5:** Finalize documentation.
+    *   Refactor `OrchestratorV2` to use a generator pattern for step-by-step UI updates.
+    *   Create `streamlit_app_v2.py` UI (multi-file upload, config).
+    *   Implement backend logic in `streamlit_app_v2.py` (agent instantiation, orchestrator invocation, temp file handling).
+    *   Implement progressive chat display using the orchestrator generator.
+    *   Apply custom CSS styling for improved readability and message differentiation.
+    *   Add and refine unit tests for `streamlit_app_v2.py`.
+    *   Ensure all `pytest` tests pass.
+    *   Update all relevant documentation (`README.md`, `prd.md`, `task_list.md`, `implementation_plan.md`) to reflect the final V2 system.
 
-**Phase 5: Future Development Planning (Ongoing)**
+**Phase 5: Future Considerations (Post-Project)**
 
-*   **Goal:** Prioritize future improvements based on current limitations and feedback.
-*   **Key Activities:** Plan for RAG implementation, Orchestrator logic improvements, user feedback integration, address bugs. 
+*   **Goal:** Identify potential next steps for enhancing the system.
+*   **Key Activities:** Consider RAG implementation, advanced debate strategies, user feedback integration, support for more LLM models.
+
+**Phase 6: V3 Multi-Round Debate Implementation (NEW)**
+
+*   **Goal:** Implement the experimental V3 workflow with multi-round agent interaction before synthesis, ensuring compatibility with the V2 Streamlit UI.
+*   **Key Activities:**
+    *   Design new prompts for debate participation and post-debate synthesis.
+    *   Modify `AnswerAgent` (or create `AnswerAgentV3`) to handle debate history and respond within rounds.
+    *   Implement `OrchestratorV3` to manage the multi-round debate loop and final synthesis.
+    *   Ensure `OrchestratorV3` yields flattened `(speaker, message)` tuples.
+    *   Add unit tests for new/modified agent and orchestrator logic.
+    *   Add CLI entry point (`orchestrate_v3`).
+    *   Update all documentation to describe V3. 

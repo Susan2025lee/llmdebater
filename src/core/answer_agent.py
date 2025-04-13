@@ -3,6 +3,7 @@ import os
 from typing import Optional, Dict, Any
 
 from .llm_interface import LLMInterface
+from .prompts import ANSWER_PROMPT_TEMPLATE
 from src.utils.token_utils import estimate_token_count
 from src.utils.file_handler import read_text_file # Assuming this function exists
 
@@ -16,22 +17,6 @@ CONTEXT_LIMIT = 128 * 1024
 # Reserve tokens for the answer to prevent exceeding limit on output
 ANSWER_BUFFER = 4 * 1024
 MAX_INPUT_TOKENS = CONTEXT_LIMIT - ANSWER_BUFFER
-
-PROMPT_TEMPLATE = """
-You are acting as a senior financial analyst. Your task is to answer questions based *only* on the provided financial report content below, which pertains to a listed company. Do not use any external knowledge, financial assumptions, or information you might possess outside of this specific report. If the answer cannot be found within the text provided, please state clearly that the information is not available in the report.
-
---- BEGIN REPORT CONTENT ---
-
-{report_content}
-
---- END REPORT CONTENT ---
-
-Based strictly and solely on the report content provided above, please answer the following question:
-
-Question: {user_query}
-
-Answer:
-"""
 
 # --- Custom Error --- #
 class ContextLengthError(ValueError):
@@ -66,7 +51,7 @@ class ReportQAAgent:
         Raises ContextLengthError, RuntimeError.
         """
         # 1. Format the Prompt
-        prompt = PROMPT_TEMPLATE.format(report_content=report_content, user_query=query)
+        prompt = ANSWER_PROMPT_TEMPLATE.format(report_content=report_content, user_query=query)
 
         # 2. Estimate Token Count and Check Limit
         estimated_tokens = estimate_token_count(prompt, model_name=MODEL_NAME)

@@ -1,27 +1,28 @@
-# Question/Answer Orchestration System (Direct Context)
+# Multi-Agent Q&A Debate System
 
-This project provides both a command-line tool and a web interface featuring three interacting AI agents:
+This project implements a multi-agent system designed to analyze documents and generate insightful question-answer pairs through a simulated debate process. It leverages Large Language Models (LLMs) to drive question generation, answer formulation based on provided source documents, and synthesis of final answers.
 
-1.  **Answer Agent:** Answers questions based *only* on the content of a provided report file.
-2.  **Question Agent:** Generates initial questions based on the content of a provided document file.
-3.  **Orchestrator Agent:** Manages an interactive workflow. It gets initial questions from the Question Agent, gets answers from the Answer Agent, checks if the answer is satisfactory using an LLM, generates follow-up questions if needed, and interacts with the user to continue or stop.
+The primary interface is a Streamlit web application (`streamlit_app_v2.py`) that visualizes the debate process.
 
-All agents use a Large Language Model (LLM, currently `gpt-o3-mini`) directly within its context window.
+**Core Functionality:**
 
-**Warning:** This is a simplified implementation that loads the *entire* input document into the LLM prompt for each agent's direct context calls. It will only work for documents small enough to fit within the configured model's context limit (currently assumed ~124k input tokens for `gpt-o3-mini`). It will fail with a `ContextLengthError` for larger documents.
+1.  **Question Agent:** Generates initial questions based on a provided "question document" (e.g., a summary or topic document).
+2.  **Answer Agents (Multiple):** Each agent is provided with a different source document (e.g., different reports, articles, or perspectives on a topic). When asked a question by the Orchestrator, each Answer Agent formulates an answer based *only* on its assigned document.
+3.  **Orchestrator Agent (V2):** Manages the debate workflow:
+    *   Gets initial questions from the Question Agent.
+    *   Poses each question to all Answer Agents simultaneously.
+    *   Collects the answers from each Answer Agent.
+    *   (Implicitly, via the generator structure) Coordinates the flow.
+4.  **Synthesizer (within Orchestrator):** Although not explicitly shown as a separate agent in the final UI, the Orchestrator uses an LLM call to synthesize a final, consolidated answer based on the individual answers provided by the Answer Agents for each question.
+5.  **Web Interface (V2):** Provides a user-friendly interface to:
+    *   Upload the question document.
+    *   Upload multiple answer documents (one per Answer Agent).
+    *   Configure parameters (number of questions, output filename).
+    *   Start the debate workflow.
+    *   View the interaction log (system messages, questions, agent answers, synthesized results) in a chat-style format.
+    *   Save the final Q&A pairs to a specified markdown file.
 
-## Features
-
-*   **Web Interface:** Modern, responsive UI with a messaging-style chat interface
-*   **Auto-scrolling:** Intelligent auto-scrolling that respects user interaction
-*   **Orchestrated Interactive Loop:** Runs a cycle where questions are generated, answered, checked for satisfaction, and followed up on automatically
-*   **User Control:** Prompts the user to continue or stop the interaction after each initial question's cycle is complete
-*   **Answer Agent:** Takes a report file path and a question, answers based only on the report
-*   **Question Agent:** Takes a document file path and generates relevant initial questions about it
-*   **Orchestrator Agent:** Manages the interaction flow, satisfaction checks, and follow-up generation
-*   Uses the `gpt-o3-mini` model (via `LLMInterface`) for all agents
-*   Includes basic error handling (file not found, context length limits)
-*   (Optional) Provides standalone modes for testing individual Answer and Question agents
+**Warning:** The system loads the *entire* content of each document into the LLM prompts. Ensure the documents are reasonably sized to fit within the LLM's context window (e.g., `gpt-o3-mini` currently used, check `MODEL_NAME` in `src/core/answer_agent.py`).
 
 ## Setup
 
@@ -39,111 +40,116 @@ All agents use a Large Language Model (LLM, currently `gpt-o3-mini`) directly wi
     ```bash
     pip install -r requirements.txt
     ```
-4.  **Configure LLM Access:** Ensure the `LLMInterface` (`src/core/llm_interface.py`) is correctly configured to access the `gpt-o3-mini` model (check `config.json` for API keys, proxy settings in `LLMInterface` if needed).
+4.  **Configure LLM Access:** Ensure the `LLMInterface` (`src/core/llm_interface.py`) is correctly configured, potentially via `src/config.json` or environment variables, to access the required LLM (e.g., `gpt-o3-mini`).
 
 ## Usage
 
-The application provides two interfaces: a Command-Line Interface (CLI) using `typer` and a Web Interface using `streamlit`.
+The primary way to use the system is through the V2 Streamlit Web Interface.
 
-### Web Interface (Streamlit)
+### Web Interface (V2 - Multi-Agent Debate)
 
-This is the recommended way to run the orchestrated workflow, offering a modern chat-like interface with the following features:
+This interface runs the multi-agent debate workflow.
 
-*   **Messaging-style Layout:** Questions and answers are displayed in a chat-like format
-*   **Intelligent Auto-scrolling:** Automatically scrolls to new messages while respecting user scrolling
-*   **Responsive Design:** Adapts to different screen sizes
-*   **File Upload:** Easy document selection through the sidebar
-*   **Parameter Control:** Adjust number of questions and follow-ups
-*   **Visual Progress:** Clear indication of workflow progress
-
-1.  **Run the Streamlit app:**
+1.  **Run the V2 Streamlit app:**
     ```bash
-    streamlit run streamlit_app.py
+    streamlit run streamlit_app_v2.py
     ```
-2.  **Open your web browser** to the local URL provided by Streamlit (usually http://localhost:8501)
-3.  **Upload** the document for question generation and the document for answering using the sidebar controls
-4.  **Adjust** the number of initial questions and max follow-ups if desired
-5.  **Click** the "Run Orchestration" button
-6.  View the results, including conversation threads, in the main panel
+    *(Ensure your virtual environment is activated)*
+2.  **Open your web browser** to the local URL provided (usually http://localhost:8501).
+3.  **Upload Document for Question Generation:** Provide the document that the Question Agent will use to create initial questions.
+4.  **Upload Answer Documents for Debate:** Upload *one or more* source documents. Each document will be assigned to a separate Answer Agent.
+5.  **Configure Parameters:**
+    *   Set the desired *Number of Initial Questions to Generate*.
+    *   Specify the *Output Filename (.md)* where the final Q&A pairs will be saved (e.g., `debate_results.md`). This file will be created in the `data/output/` directory.
+6.  **Start Workflow:** Click the "Start V2 Debate" button.
+7.  **Monitor:** Observe the chat interface as the system initializes, generates questions, gathers answers from each agent, and synthesizes the final results.
+8.  **Results:** Once complete, the final Q&A pairs will be displayed in the chat and saved to the specified output markdown file in `data/output/`.
 
 ### Command-Line Interface (CLI)
 
-The CLI provides access to the orchestrated workflow and standalone agent testing.
+While the Streamlit app is the primary UI, `main.py` provides CLI commands for running workflows.
 
-You can get help for any command by appending `--help` (e.g., `python main.py orchestrate --help`).
-
-**1. Orchestrate Workflow:**
-
-Runs the main interactive loop managed by the Orchestrator (prints results to console).
+**V2 Multi-Agent Debate (CLI):**
 
 ```bash
-python main.py orchestrate QUESTION_DOC_PATH ANSWER_DOC_PATH [--num-initial-questions N] [--max-follow-ups M]
-```
-*   `QUESTION_DOC_PATH`: Path to the document for generating initial questions (e.g., a summary)
-*   `ANSWER_DOC_PATH`: Path to the document used for answering questions (e.g., a full report)
-*   `--num-initial-questions` (Optional): How many initial questions to generate (default: 5)
-*   `--max-follow-ups` (Optional): Maximum follow-up attempts per question (default: 2)
-
-*Example:*
-```bash
-python main.py orchestrate data/reports/xiaomi_brandloyalty_cursor.md data/reports/xiaomi_brandloyalty_gemini2.5.md --num-initial-questions 3 --max-follow-ups 1
+# Example:
+env/bin/python main.py orchestrate_v2 \
+    data/input/question_doc.md \
+    data/input/answer_doc1.md data/input/answer_doc2.md \
+    data/output/v2_results.md \
+    --num-initial-questions 3
 ```
 
-**2. Standalone Chat (Answer Agent):**
+**V3 Multi-Round Debate (CLI - Experimental):**
 
-(Primarily for testing/debugging the Answer Agent)
-Loads a report and lets you ask multiple questions about it manually via the console.
+This runs an experimental workflow where Answer Agents participate in multiple rounds before final synthesis.
 
 ```bash
-python main.py chat REPORT_PATH
+# Example:
+env/bin/python main.py orchestrate_v3 \
+    data/input/question_doc.md \
+    data/input/answer_doc1.md data/input/answer_doc2.md data/input/answer_doc3.md \
+    data/output/v3_results.md \
+    --num-initial-questions 2 \
+    --max-debate-rounds 2 # Specify number of debate rounds (after initial answers)
 ```
-*   `REPORT_PATH`: Path to the report file for the Answer Agent
+*   `--max-debate-rounds`: Controls how many rounds of back-and-forth occur between the agents (default is 2). A value of 0 means only initial answers are gathered before synthesis.
 
-*Example:*
-```bash
-python main.py chat data/reports/xiaomi_brandloyalty_gemini2.5.md
+*(Note: The V1 Streamlit app (`streamlit_app.py`) and the CLI command `orchestrate` related to the satisfaction/follow-up loop represent an earlier version and are considered legacy.)*
+
+## Project Structure
+
+```
+llmdebater/
+├── data/
+│   ├── input/             # Sample input documents (optional)
+│   └── output/            # Directory for saved debate results (.md files)
+├── env/                   # Python virtual environment (created by user)
+├── src/
+│   ├── core/
+│   │   ├── __init__.py
+│   │   ├── answer_agent.py    # Defines the ReportQAAgent (Base V2)
+│   │   ├── answer_agent_v3.py # Defines AnswerAgentV3 (Multi-round debate)
+│   │   ├── llm_interface.py # Handles LLM API communication
+│   │   ├── orchestrator.py    # Defines V1 Orchestrator (LEGACY)
+│   │   ├── orchestrator_v2.py # Defines V2 Orchestrator (Single-round debate)
+│   │   ├── orchestrator_v3.py # Defines V3 Orchestrator (Multi-round debate)
+│   │   ├── question_agent.py  # Defines QuestionAgent
+│   │   └── prompts.py         # Contains LLM prompt templates
+│   ├── utils/
+│   │   ├── __init__.py
+│   │   ├── file_handler.py  # Utility for reading files
+│   │   └── token_utils.py   # Utility for estimating token counts
+│   └── __init__.py
+│   └── config.json        # Configuration (e.g., API keys - add to .gitignore!)
+├── tests/
+│   ├── __init__.py
+│   ├── conftest.py        # Pytest configuration and fixtures
+│   ├── test_answer_agent.py
+│   ├── test_answer_agent_v3.py # Tests for V3 Answer Agent
+│   ├── test_file_handler.py
+│   ├── test_llm_interface.py
+│   ├── test_orchestrator.py     # Tests for LEGACY V1 orchestrator
+│   ├── test_orchestrator_v2.py  # Tests for V2 orchestrator
+│   ├── test_orchestrator_v3.py  # Tests for V3 orchestrator
+│   ├── test_question_agent.py
+│   ├── test_streamlit_app_v2.py # Tests for V2 Streamlit app logic
+│   └── test_token_utils.py
+├── .gitignore
+├── agent_interaction_v3.md # V3 Interaction Flow Diagram
+├── implementation_plan.md
+├── main.py                # CLI entry point (includes V1/V2/V3 orchestrators)
+├── prd.md                 # Product Requirements Document
+├── README.md              # This file
+├── requirements.txt       # Python dependencies
+├── streamlit_app.py       # V1 Streamlit UI (LEGACY)
+└── streamlit_app_v2.py    # V2 Streamlit UI (PRIMARY UI)
 ```
 
-**3. Standalone Generate Questions (Question Agent):**
+## Key Components (`src/core/`)
 
-(Primarily for testing/debugging the Question Agent)
-Generates questions based on the content of a document and prints them to the console.
-
-```bash
-python main.py generate-questions DOCUMENT_PATH [--num-questions N]
-```
-*   `DOCUMENT_PATH`: Path to the document for the Question Agent
-*   `--num-questions` (Optional): How many questions to generate (default: 5)
-
-*Example:*
-```bash
-python main.py generate-questions data/reports/xiaomi_brandloyalty_cursor.md --num-questions 3
-```
-
-**Important Considerations:**
-
-*   **Context Limit:** The primary limitation for *all* agents and orchestrator calls. Large input documents will cause errors
-*   **Document Format:** Currently tested with `.txt` and `.md` files
-*   **Model:** Hardcoded to use `gpt-o3-mini` for all agents
-*   **Answer/Question/Satisfaction Quality:** Depends heavily on the LLM and prompt engineering for all agents
-*   **Loop Limits:** The orchestrator includes a limit on follow-up attempts per question
-
-## Development
-
-*   **Answer Agent Logic:** `src/core/answer_agent.py`
-*   **Question Agent Logic:** `src/core/question_agent.py`
-*   **Orchestrator Logic:** `src/core/orchestrator.py`
-*   **LLM Communication:** `src/core/llm_interface.py`
-*   **Web Interface:** `streamlit_app.py`
-*   **Auto-scroll Logic:** `auto_scroll.py`
-*   **Utilities:** `src/utils/`
-*   **CLI:** `main.py`
-*   **Tests:** `tests/`
-
-## Future Development (Roadmap)
-
-*   **Implement RAG:** Highest priority to remove context limits for all agents
-*   **Improve Orchestrator Logic:** More sophisticated satisfaction checks, follow-up strategies, context management across turns
-*   **User Feedback Integration:** Allow user to override Orchestrator's satisfaction judgment
-*   **Support More Formats:** PDF, DOCX parsing
-*   **UI Improvements:** Enhanced chat features, better error handling, and more interactive controls 
+*   **`llm_interface.py`:** Centralized class for all interactions with the configured LLM.
+*   **`question_agent.py`:** Uses the LLM to generate questions based on an input document.
+*   **`answer_agent.py` / `answer_agent_v3.py`:** Use the LLM to answer questions based *only* on the content of their assigned document context. V3 adds multi-round debate participation.
+*   **`orchestrator_v2.py` / `orchestrator_v3.py`:** Implement the debate workflows. Coordinate agents, structure debate turns, use the LLM for synthesizing final answers, and yield results. V3 manages multiple rounds.
+*   **`prompts.py`:** Stores the prompt templates used by the agents and orchestrators.

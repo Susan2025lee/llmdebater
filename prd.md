@@ -1,93 +1,91 @@
-**Product Requirements Document: Orchestrated Question/Answer Agent System (Direct Context)**
+**Product Requirements Document: Multi-Agent Q&A Debate System**
 
 **1. Introduction**
 
-This document outlines requirements for the **Orchestrated Question/Answer Agent System (Direct Context version)**. This system employs three AI agents:
+This document outlines requirements for the **Multi-Agent Q&A Debate System**. The system utilizes multiple AI agents to analyze provided documents and generate consolidated answers to questions derived from those documents. The core workflow involves:
 
-1.  **Answer Agent:** Answers a given question based *only* on the content of its assigned report file (loaded entirely into LLM context).
-2.  **Question Agent:** Analyzes an assigned input document and generates a list of initial questions about its content (using direct LLM context).
-3.  **Orchestrator Agent:** Manages the interactive workflow. It uses the Question Agent to get initial questions, then for each initial question, it uses the Answer Agent to get an answer. It then uses an LLM to check if the answer is satisfactory based on the question. If not, it prompts the LLM to generate a follow-up question and repeats the answer/check cycle. It interacts with the user for continuation prompts.
+1.  **Question Agent:** Generates initial questions based on a user-provided "question document".
+2.  **Answer Agents (Multiple):** Each agent receives a unique source document. They answer questions posed by the Orchestrator based *only* on their assigned document.
+3.  **Orchestrator Agent (V2):** Manages the debate workflow by:
+    *   Generating initial questions via the Question Agent.
+    *   Distributing each question to all Answer Agents.
+    *   Collecting the individual answers.
+    *   Utilizing an LLM to synthesize a final, consolidated answer from the individual agent responses.
+    *   Saving the Question/Final Answer pairs.
 
-All agents utilize the `gpt-o3-mini` LLM via `LLMInterface` and operate within its context window limitations.
-The primary goal is an interactive system where AI-generated questions probe a document, answers are retrieved strictly from that document, and an AI orchestrator manages follow-ups and user interaction.
+All agents use an LLM (e.g., `gpt-o3-mini`) accessed through a central `LLMInterface`. The system primarily operates via a Streamlit web interface (`streamlit_app_v2.py`).
 
 **2. Goals**
 
-*   **Automate Q&A:** Automatically generate relevant questions from a source document.
-*   **Contextual Answering:** Provide answers based *strictly* on the content of a separate target document.
-*   **Interactive Refinement:** Implement an interactive loop involving satisfaction checks and follow-up questions to improve answer quality when initial answers are insufficient.
-*   **User Control:** Allow the user to observe the process and step through results.
-*   **Accessibility:** Provide both a CLI for developers/power users and an easy-to-use Web UI for broader access.
-*   **Modularity:** Design agents (Question, Answer, Orchestrator) as distinct components.
+*   **Automated Question Generation:** Generate relevant questions about a topic document.
+*   **Contextual Multi-Perspective Answering:** Provide answers to questions based strictly on the content of multiple, potentially differing source documents, with each source handled by a dedicated agent.
+*   **Answer Synthesis:** Consolidate potentially diverse answers from multiple agents into a single, coherent final answer using an LLM.
+*   **User-Friendly Interface:** Provide an intuitive Web UI (Streamlit) for uploading documents, configuring parameters, running the debate, and viewing the results.
+*   **Output Persistence:** Save the generated Question/Final Answer pairs to a user-specified file.
+*   **Modularity:** Maintain distinct components for question generation, answering, orchestration, and LLM interaction.
 
 **3. Non-Goals**
 
-*   **Handling Documents Exceeding Context Limits:** The system relies on inputs fitting within the LLM context window.
-*   **Sophisticated State Management:** Initial version may have limited memory across follow-up questions due to context constraints.
-*   **Complex Satisfaction Criteria:** Satisfaction checks will rely on LLM judgment based on a specific prompt, not complex metrics.
-*   **User Input During Follow-up Loop:** The user is only prompted *after* the Orchestrator deems an answer satisfactory for an initial question.
-*   **Fact-Checking, General Knowledge Answers, etc.:** Same non-goals apply as for the individual agents.
+*   **Handling Documents Exceeding Context Limits:** The system relies on inputs fitting within the LLM context window. This is a known limitation.
+*   **V1 Workflow Maintenance:** The previous satisfaction/follow-up loop (V1 Orchestrator, `streamlit_app.py`, related CLI commands) is considered legacy and not actively maintained or required for the final V2 system.
+*   **Real-time User Interaction During Debate:** The debate runs automatically after initiation; user interaction is limited to setup and viewing results.
+*   **Fact-Checking / External Knowledge:** Agents operate solely based on the provided documents.
 
 **4. User Stories / Use Cases**
 
 *   **As an Analyst:**
-    *   I want to provide a document (e.g., summary) to the Question Agent and a full report to the Answer Agent.
-    *   I want the Orchestrator Agent to automatically take the first question, get an answer, and ask follow-up questions until it deems the answer satisfactory, showing me the conversation.
-    *   After a satisfactory answer is reached for one initial question, I want the system to ask me if I want to continue with the next initial question.
+    *   I want to upload a summary document to generate questions.
+    *   I want to upload multiple related reports (e.g., different versions, different perspectives) to be used by separate Answer Agents.
+    *   I want the system to automatically generate questions, get answers from each report via its agent, and synthesize a final answer for each question.
+    *   I want to view the process unfold in a chat interface.
+    *   I want the final Question/Synthesized Answer pairs saved to a file for later review.
 
 **5. Functional Requirements**
 
-*   **FR-A1..A4 (Answer Agent):** As previously defined (ingest report, take query, generate answer from context, output answer).
-*   **FR-Q1..Q3 (Question Agent):** As previously defined (ingest doc, generate initial questions, output questions).
-*   **FR-O1: Orchestrator - Initialization:** Must initialize Answer and Question Agents.
-*   **FR-O2: Orchestrator - Workflow Management:** Must orchestrate the main loop (get initial questions, loop through them) and the inner loop (ask, check satisfaction, generate follow-up).
-*   **FR-O3: Orchestrator - Satisfaction Check:** Must construct a prompt containing the question and answer, call LLM, and parse response to determine if the answer is satisfactory.
-*   **FR-O4: Orchestrator - Follow-up Generation:** If an answer is unsatisfactory, must construct a prompt to generate a relevant follow-up question based on the original question and the unsatisfactory answer, call LLM, and parse the response.
-*   **FR-O5: Orchestrator - Loop Control:** Must include a mechanism to limit the number of follow-up attempts per initial question.
-*   **FR-O6: Orchestrator - User Interaction:** Must prompt the user to continue/stop after each initial question's cycle completes.
-*   **FR-C1: Context Limit Handling:** All LLM calls (Answer, Question, Orchestrator checks) must respect context limits.
+*   **FR-A1..A4 (Answer Agent):** Ingest assigned document, take query, generate answer from context, output answer, handle context limits.
+*   **FR-Q1..Q3 (Question Agent):** Ingest question doc, generate N initial questions, output questions.
+*   **FR-OV2-1: Multi-Agent Initialization:** Orchestrator V2 initializes one Question Agent and a list of Answer Agents (one per provided answer document).
+*   **FR-OV2-2: Workflow Management:** Orchestrator V2 manages the flow: generate questions -> distribute question -> collect answers -> synthesize answer -> save result -> repeat for next question.
+*   **FR-OV2-3: Multi-Answer Collection:** Collects answers from all active Answer Agents for the current question, handling potential errors (e.g., context length) from individual agents.
+*   **FR-OV2-4: Answer Synthesis:** Uses an LLM via `LLMInterface` with a specific prompt to generate a consolidated final answer based on the collection of individual answers.
+*   **FR-OV2-5: Output Management:** Writes the initial question and the synthesized final answer to a specified markdown output file.
+*   **FR-UI-1: Document Upload:** Web UI allows uploading one question document and multiple answer documents.
+*   **FR-UI-2: Parameter Configuration:** Web UI allows configuring the number of initial questions and the output filename.
+*   **FR-UI-3: Workflow Control:** Web UI provides "Start" and "Reset" buttons.
+*   **FR-UI-4: Chat Display:** Web UI displays the interaction log (system messages, questions, agent answers, synthesized answers) progressively in a styled chat format.
+*   **FR-LLM-1: Centralized Interface:** All LLM interactions occur through `LLMInterface`.
 
 **6. Non-Functional Requirements**
 
-*   **NFR1 (Context Limitation):** The initial version will load entire documents into context. Performance and functionality are limited by the LLM's context window size (e.g., `gpt-o3-mini`). This limitation must be clearly documented.
-*   **NFR2 (Modularity):** Core logic for each agent (Question, Answer, Orchestrator) should reside in separate modules/classes.
-*   **NFR3 (Configuration):** LLM access details (e.g., model name, API keys if applicable) should be configurable (e.g., via `config.json` or environment variables used by `LLMInterface`).
-*   **NFR4 (Readability):** Code should be well-commented and follow standard Python style guidelines (e.g., PEP 8).
-*   **NFR5 (Testability):** Core agent and orchestrator logic should be unit-testable, ideally using mocking for LLM interactions.
-*   **NFR6 (Usability - CLI):** The CLI should provide clear usage instructions and error messages.
-*   **NFR7 (Usability - Web UI):** The Streamlit UI should be intuitive, providing clear instructions, status updates (e.g., spinners), and error feedback.
-*   **NFR8 (Extensibility):** The design should allow for future replacement of the direct context approach with RAG (Retrieval-Augmented Generation) without rewriting the entire agent interaction logic.
+*   **NFR1 (Context Limitation):** System performance and functionality are limited by the LLM's context window size. This must be documented.
+*   **NFR2 (Modularity):** Core logic resides in separate modules (`question_agent.py`, `answer_agent.py`, `orchestrator_v2.py`, `llm_interface.py`).
+*   **NFR3 (Configuration):** LLM access details are configurable.
+*   **NFR4 (Readability):** Code is well-commented and follows style guidelines.
+*   **NFR5 (Testability):** Core logic is unit-testable with mocking for LLM interactions.
+*   **NFR6 (Usability - Web UI):** The V2 Streamlit UI is intuitive, providing clear instructions, status updates, and error feedback. Styling enhances readability.
+*   **NFR7 (Output Format):** Results are saved in a readable markdown format.
 
 **7. Design Considerations/Constraints**
 
-*   **Core Technology:** `gpt-o3-mini` via `LLMInterface` for all three agents.
+*   **Core Technology:** Python, Streamlit, `gpt-o3-mini` (or other model via `LLMInterface`).
 *   **No RAG.**
-*   **Modularity:** Clear separation between Orchestrator, Question Agent, Answer Agent logic.
-*   **Prompt Engineering (Orchestrator):** Critical prompts needed for:
-    *   Satisfaction Check (Input: Q, A; Output: Satisfied/Unsatisfied reason).
-    *   Follow-up Question Generation (Input: Original Q, Unsatisfactory A; Output: New follow-up Q).
-*   **State Management (Orchestrator):** Needs to track current initial question, current follow-up question, retry counts, etc.
-*   **Context Window Management:** Even more critical now with Orchestrator LLM calls potentially needing Q+A context.
-*   **UI Considerations:**
-    *   **Web UI Style:** Messaging-style chat interface with left-aligned questions/orchestrator messages and right-aligned answers
-    *   **Auto-scrolling:** Reliable auto-scrolling mechanism for the chat container to ensure new messages are visible
-    *   **Responsive Design:** Chat container scales with viewport height for better user experience across devices
+*   **Orchestration:** Implemented via `OrchestratorV2` using a generator pattern to yield results step-by-step for the UI.
+*   **Prompt Engineering:** Key prompts exist for question generation, answering within context, and answer synthesis/debate.
+*   **UI Styling:** Custom styling applied in `streamlit_app_v2.py` for message differentiation and readability.
 
-**8. Evaluation Metrics (for the Project)**
+**8. Evaluation Metrics**
 
-*   **Functionality:** Successful execution of the orchestrated interactive loop.
-*   **Satisfaction Check Accuracy:** Human judgment on whether the Orchestrator's satisfaction decision was reasonable.
-*   **Follow-up Question Quality:** Human judgment on relevance and usefulness of follow-ups.
-*   **Answer Faithfulness & Relevance:** Continued evaluation of Answer Agent output.
-*   **Initial Question Quality:** Continued evaluation of Question Agent output.
-*   **Loop Termination:** Verify max retries and user stop commands work.
+*   **Functionality:** Successful execution of the V2 debate workflow from start to finish, producing an output file.
+*   **Synthesized Answer Quality:** Human judgment on the coherence, relevance, and faithfulness (to the source documents) of the final synthesized answers.
+*   **Question Quality:** Relevance and insightfulness of generated questions.
+*   **UI/UX:** Clarity and usability of the `streamlit_app_v2.py` interface.
 
 **9. Future Considerations**
 
-*   **Implementing RAG:** Remains top priority.
-*   **More Sophisticated Orchestrator Logic:** Improve satisfaction checks, follow-up strategies, context management across turns.
-*   **User Feedback Integration:** Allow user to override Orchestrator's satisfaction judgment.
-*   **UI/API:** Create better interfaces.
+*   Implementing RAG to handle larger documents.
+*   More sophisticated synthesis/debate strategies.
+*   Allowing user feedback on synthesized answers.
+*   Support for different LLM models.
 
 **10. Open Questions**
 
@@ -97,5 +95,55 @@ The primary goal is an interactive system where AI-generated questions probe a d
 *   What is a reasonable maximum number of follow-up attempts?
 *   How much context (original Q, previous A/follow-ups) can realistically be passed to the Orchestrator's LLM calls within limits?
 *   How will the CLI manage the setup (paths for Q-doc and A-doc)?
+*   How to effectively structure prompts for multi-round debate participation (critique, refinement, defense)?
+*   How to best represent the debate history for the LLM within context limits?
+*   What are effective termination conditions for the debate rounds?
+*   How should the final answer be determined post-debate (synthesis vs. selection)?
 
---- 
+---
+
+**11. V2 Workflow: Multi-Agent Debate (Alternative)**
+
+*   **Concept:** An alternative workflow (`OrchestratorV2`) can be invoked to facilitate a debate among multiple Answer Agents.
+*   **Process:**
+    1.  A single `QuestionAgent` generates initial questions.
+    2.  For each question, *multiple* `AnswerAgent` instances (each potentially with its own report context) provide answers independently.
+    3.  `OrchestratorV2` gathers all answers for the current question.
+    4.  `OrchestratorV2` uses a specific LLM prompt (the "Debate Prompt") to analyze and synthesize all provided answers into a single, consolidated "Final Answer".
+    5.  The question and its Final Answer are stored in a designated output file.
+    6.  The process repeats for all initial questions.
+*   **Goal:** Leverage multiple perspectives (from different agents/contexts) to potentially generate a more robust or comprehensive final answer compared to the single-agent V1 workflow.
+*   **Use Case:** Useful when comparing outputs based on slightly different reports or simply exploring variations in LLM responses to the same query.
+*   **Requirements:**
+    *   **FR-OV2-1: Multi-Agent Initialization:** `OrchestratorV2` must initialize one `QuestionAgent` and a list of `AnswerAgent` instances.
+    *   **FR-OV2-2: Multi-Answer Collection:** Must collect answers from all initialized `AnswerAgents` for each question.
+    *   **FR-OV2-3: Debate/Synthesis:** Must implement the centralized LLM call using the "Debate Prompt" to generate a final answer from multiple inputs.
+    *   **FR-OV2-4: Output Management:** Must write Question/Final Answer pairs to a specified output file.
+    *   **FR-OV2-5: CLI Integration:** A new CLI command (`orchestrate-debate`) is required to accept inputs for the question document, *multiple* answer documents, and the output file path.
+
+---
+
+**12. V3 Workflow: Multi-Round Debate (Experimental)**
+
+*   **Concept:** Extend the V2 workflow to include multiple rounds of interaction between Answer Agents for each question before final synthesis.
+*   **Process:**
+    1.  Question Agent generates initial questions.
+    2.  For each question, OrchestratorV3 initiates Round 0:
+        *   Distributes question to all `AnswerAgentV3` instances.
+        *   Collects initial answers.
+    3.  OrchestratorV3 initiates Debate Rounds (e.g., 1 to `max_debate_rounds`):
+        *   Provides the original question and the *entire debate history so far* to each `AnswerAgentV3`.
+        *   Each `AnswerAgentV3` formulates a response (critique, refinement, defense) based on history and its own document.
+        *   Orchestrator collects responses for the current round and adds them to the history.
+    4.  After debate rounds conclude, OrchestratorV3 synthesizes a final answer based on the full debate history.
+    5.  Question and Final Answer are saved to the output file.
+*   **Goal:** Generate potentially more refined or nuanced answers by allowing agents to interact and challenge each other based on their respective source documents.
+*   **Use Case:** Scenarios requiring deeper analysis or reconciliation of information from multiple conflicting/complementary sources.
+*   **Requirements:**
+    *   **FR-AAV3-1: Debate Participation:** A new or modified Answer Agent (`AnswerAgentV3`) must implement a method (`participate_in_debate`) that accepts the question, the debate history, and its document path, and generates a relevant contribution for the current round.
+    *   **FR-OV3-1: Multi-Round Orchestration:** `OrchestratorV3` must manage the multi-round loop, passing the accumulating debate history to agents each round.
+    *   **FR-OV3-2: Debate History Management:** `OrchestratorV3` must maintain the structured history of the debate for each question.
+    *   **FR-OV3-3: Configurable Rounds:** The maximum number of debate rounds should be configurable.
+    *   **FR-OV3-4: Final Synthesis (Post-Debate):** `OrchestratorV3` uses an LLM to synthesize a final answer based on the *complete* debate history.
+    *   **FR-OV3-5: CLI Integration:** (Optional but recommended) A new CLI command (`orchestrate_v3`) to run this workflow.
+    *   **FR-OV3-6: UI Compatibility:** `OrchestratorV3` *must* yield its output as a flattened sequence of `(speaker, message)` tuples to remain compatible with the existing `streamlit_app_v2.py` interface. This includes yielding messages indicating round transitions and using prefixes/suffixes to clarify agent roles and rounds within the flat output stream. 

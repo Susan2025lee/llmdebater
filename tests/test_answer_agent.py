@@ -15,7 +15,8 @@ if src_path not in sys.path:
 # Now imports from src/core should work directly
 # Import PROMPT_TEMPLATE directly
 # Also import MODEL_NAME constant
-from core.answer_agent import ReportQAAgent, ContextLengthError, MAX_INPUT_TOKENS, PROMPT_TEMPLATE, MODEL_NAME 
+from core.answer_agent import ReportQAAgent, ContextLengthError, MAX_INPUT_TOKENS, MODEL_NAME
+from core.prompts import ANSWER_PROMPT_TEMPLATE # Import the correct template
 from core.llm_interface import LLMInterface # Import directly from core
 
 # --- Fixtures --- #
@@ -68,7 +69,7 @@ def test_ask_question_success(agent, mock_dependencies):
     mock_read.assert_called_once_with(report_path)
     # Check that estimate_token_count was called with the correctly formatted prompt
     # Use the imported PROMPT_TEMPLATE
-    expected_prompt = PROMPT_TEMPLATE.format(report_content=report_content, user_query=query)
+    expected_prompt = ANSWER_PROMPT_TEMPLATE.format(report_content=report_content, user_query=query)
     # Use the imported MODEL_NAME
     mock_estimate.assert_called_once_with(expected_prompt, model_name=MODEL_NAME)
     # Check that llm was called with the correct message structure
@@ -149,7 +150,7 @@ def test_ask_question_context_length_exceeded(agent, mock_dependencies):
     
     mock_read.assert_called_once_with(report_path)
     # Check estimate was still called
-    expected_prompt = PROMPT_TEMPLATE.format(report_content=report_content, user_query=query)
+    expected_prompt = ANSWER_PROMPT_TEMPLATE.format(report_content=report_content, user_query=query)
     # Use the imported MODEL_NAME
     mock_estimate.assert_called_once_with(expected_prompt, model_name=MODEL_NAME)
 
@@ -169,7 +170,7 @@ def test_ask_question_token_estimation_error(agent, mock_dependencies):
     # Assert the actual returned error message
     assert result == "Token estimation failed."
     mock_read.assert_called_once_with(report_path)
-    expected_prompt = PROMPT_TEMPLATE.format(report_content=report_content, user_query=query)
+    expected_prompt = ANSWER_PROMPT_TEMPLATE.format(report_content=report_content, user_query=query)
     # Use the imported MODEL_NAME
     mock_estimate.assert_called_once_with(expected_prompt, model_name=MODEL_NAME)
 
@@ -193,7 +194,7 @@ def test_ask_question_llm_error(agent, mock_dependencies):
     # Assert the actual returned error message
     assert result == f"Error getting response from language model: {error_message}"
     mock_read.assert_called_once_with(report_path)
-    expected_prompt = PROMPT_TEMPLATE.format(report_content=report_content, user_query=query)
+    expected_prompt = ANSWER_PROMPT_TEMPLATE.format(report_content=report_content, user_query=query)
     # Use the imported MODEL_NAME
     mock_estimate.assert_called_once_with(expected_prompt, model_name=MODEL_NAME)
     expected_messages = [{"role": "user", "content": expected_prompt}]
@@ -219,7 +220,7 @@ def test_ask_question_llm_invalid_response(agent, mock_dependencies):
     # Assert the actual returned error message
     assert result == f"Error getting response from language model: {error_message}"
     mock_read.assert_called_once_with(report_path)
-    expected_prompt = PROMPT_TEMPLATE.format(report_content=report_content, user_query=query)
+    expected_prompt = ANSWER_PROMPT_TEMPLATE.format(report_content=report_content, user_query=query)
     # Use the imported MODEL_NAME
     mock_estimate.assert_called_once_with(expected_prompt, model_name=MODEL_NAME)
     expected_messages = [{"role": "user", "content": expected_prompt}]

@@ -7,6 +7,8 @@ import re # Import regex for better parsing
 
 # Assuming utils and LLMInterface are accessible
 from .llm_interface import LLMInterface
+# Import the prompt from the new module
+from .prompts import QUESTION_PROMPT_TEMPLATE
 from src.utils.token_utils import estimate_token_count
 from src.utils.file_handler import read_text_file
 from .answer_agent import ContextLengthError, MAX_INPUT_TOKENS, MODEL_NAME # Reusing constants
@@ -14,44 +16,29 @@ from .answer_agent import ContextLengthError, MAX_INPUT_TOKENS, MODEL_NAME # Reu
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
-QUESTION_PROMPT_TEMPLATE = """
-You are an insightful analyst tasked with generating probing questions about the provided document. Analyze the following text content carefully. Based *only* on the information presented in this document, generate a list of {num_questions} specific and relevant questions that explore the key topics, data points, claims, or potential ambiguities within the text. The questions should encourage deeper understanding or critical evaluation of the document's content.
-
-Avoid generic questions. Focus on questions that can, in principle, be answered using the information *within* the document itself (even if the answer isn't explicitly stated, the question should pertain directly to the document's content).
-
-Format the output as a numbered list of questions, each on a new line.
-
---- BEGIN DOCUMENT CONTENT ---
-
-{document_content}
-
---- END DOCUMENT CONTENT ---
-
-Generated Questions:
-1.
-"""
-
 class QuestionAgent:
     """Generates relevant questions about a given document content."""
 
-    def __init__(self):
-        """Initializes the QuestionAgent, setting up LLM access."""
+    def __init__(self, llm_interface: LLMInterface):
+        """Initializes the QuestionAgent with a shared LLMInterface."""
         try:
-            # Using the same model as AnswerAgent for now
-            self.llm_interface = LLMInterface(model_key=MODEL_NAME) 
-            logger.info(f"QuestionAgent initialized for model: {MODEL_NAME}")
+            # Store the passed LLMInterface
+            self.llm = llm_interface
+            # Log the model name from the passed interface (use .model_name)
+            logger.info(f"QuestionAgent initialized using shared LLMInterface for model: {self.llm.model_name}")
         except Exception as e:
-            logger.error(f"Failed to initialize LLMInterface for QuestionAgent: {e}", exc_info=True)
-            raise RuntimeError(f"Could not initialize LLMInterface for QuestionAgent: {e}")
-            
+            # This error is less likely now as init is simpler, but keep for safety
+            logger.error(f"Error during QuestionAgent initialization with LLMInterface: {e}", exc_info=True)
+            raise RuntimeError(f"Could not initialize QuestionAgent: {e}")
+
     def _generate_questions_from_llm(self, prompt: str) -> str:
         """Internal helper to call the LLM and get the raw response."""
         try:
             logger.info("Sending request to LLM for question generation...")
             messages = [{"role": "user", "content": prompt}]
-            # Use default temperature, potentially adjust later if needed for question quality
-            llm_response = self.llm_interface.generate_chat_response(messages)
-            
+            # Use the shared self.llm interface
+            llm_response = self.llm.generate_chat_response(messages)
+
             if not llm_response or not isinstance(llm_response, str):
                  logger.error(f"Received invalid response from LLM: {llm_response}")
                  raise ValueError("Received invalid response from the language model.")
@@ -117,12 +104,15 @@ class QuestionAgent:
         )
 
         # 2. Estimate Tokens & Check Limit
-        estimated_tokens = estimate_token_count(prompt, model_name=MODEL_NAME)
+        # Use the model name from the LLM interface
+        estimated_tokens = estimate_token_count(prompt, model_name=self.llm.model_name)
         if estimated_tokens == -1:
             logger.error("Token estimation failed for question generation prompt.")
             raise ValueError("Token estimation failed.")
 
         logger.info(f"Estimated prompt token count for question generation: {estimated_tokens}")
+        # Use MAX_INPUT_TOKENS from the interface/config if available, otherwise use imported constant
+        # Assuming MAX_INPUT_TOKENS constant is okay for now, but ideally read from config
         if estimated_tokens > MAX_INPUT_TOKENS:
             error_msg = (
                 f"Input document ({estimated_tokens} tokens) exceeds the maximum allowed tokens "

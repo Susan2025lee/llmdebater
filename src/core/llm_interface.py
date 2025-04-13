@@ -68,7 +68,9 @@ class LLMInterface:
         
         # --- Conditional Proxy Setup ---
         use_proxy_str = os.getenv('USE_LLM_PROXY', 'True').lower()
+        print(f"[DEBUG] Raw USE_LLM_PROXY from os.getenv: '{os.getenv('USE_LLM_PROXY')}' -> Processed string: '{use_proxy_str}'")
         use_proxy = use_proxy_str == 'true'
+        print(f"[DEBUG] Calculated use_proxy boolean: {use_proxy}")
         
         if use_proxy:
             print("Configuring OpenAI client to use proxy...")

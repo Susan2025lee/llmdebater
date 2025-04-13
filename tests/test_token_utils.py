@@ -1,5 +1,6 @@
 import pytest
 from unittest.mock import patch
+import tiktoken
 
 # Ensure imports work correctly based on project structure
 from src.utils.token_utils import estimate_token_count, DEFAULT_ENCODING, MODEL_TO_ENCODING
@@ -37,13 +38,13 @@ def test_estimate_token_count_encoding_fallback(caplog):
     
     # Mock tiktoken.get_encoding to simulate failure for the specific model
     # but success for the default encoding.
+    original_get_encoding = tiktoken.get_encoding # Store the original function
     def mock_get_encoding(encoding_name):
         if encoding_name == "specific_unknown_encoding":
             raise ValueError("Encoding not found")
         elif encoding_name == DEFAULT_ENCODING:
-            # Return the actual default encoding function
-            import tiktoken
-            return tiktoken.get_encoding(DEFAULT_ENCODING)
+            # Return the actual default encoding function using the stored original
+            return original_get_encoding(DEFAULT_ENCODING)
         else:
             # Unexpected encoding request in this test
             raise ValueError(f"Unexpected encoding requested: {encoding_name}")

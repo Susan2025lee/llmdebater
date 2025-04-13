@@ -8,6 +8,8 @@ import os
 import sys
 # Import exception and constants used
 from .answer_agent import ContextLengthError
+# Import prompts
+from .prompts import SATISFACTION_PROMPT_TEMPLATE, FOLLOW_UP_PROMPT_TEMPLATE
 # We might need models later for structured input/output if we go beyond simple parsing
 # from src.core.models import ...
 
@@ -36,38 +38,7 @@ class Orchestrator:
         self.answer_doc_content: str | None = None # Pre-load answer content
         self.num_initial_questions_req: int = 0
 
-        # Updated satisfaction prompt to always ask for a reason
-        self.satisfaction_prompt_template = """
-You are an evaluation agent. Your task is to assess if the provided 'Answer' adequately and completely addresses the 'Original Question'. Do not use external knowledge. Base your assessment *only* on the text provided in the 'Answer'.
-
-Original Question:
-{question}
-
-Answer:
-{answer}
-
-Is the Answer satisfactory in addressing the Original Question?
-Respond with either "Satisfied" or "Unsatisfied".
-Briefly explain the reason for your assessment (why it is satisfied or unsatisfied) based *only* on the question and answer text.
-
-Assessment: [Satisfied/Unsatisfied]
-Reason: [Brief explanation]
-"""
-        # TODO T2.2: Finalize follow-up prompt - this is V1
-        self.follow_up_prompt_template = """
-You are a question refinement agent. You received an 'Original Question' and an 'Unsatisfactory Answer' that failed to fully address the question.
-Your task is to generate a *single, specific* follow-up question that directly targets the missing information or inadequacy in the 'Unsatisfactory Answer'. The goal is to guide the next response towards fully answering the 'Original Question'.
-
-Original Question:
-{question}
-
-Unsatisfactory Answer:
-{answer}
-
-Generate a follow-up question to elicit the missing information needed to satisfy the Original Question.
-
-Follow-up Question:
-"""
+        # Removed prompt definitions
 
     def load_answer_doc(self, answer_doc_path: str):
         """Loads and stores the answer document content. Public method."""
@@ -122,7 +93,7 @@ Follow-up Question:
             - reason (str | None): The explanation provided by the LLM, or None if parsing fails.
         """
         # logger.debug(f"Checking satisfaction for Q: {question} A: {answer[:100]}...")
-        prompt = self.satisfaction_prompt_template.format(question=question, answer=answer)
+        prompt = SATISFACTION_PROMPT_TEMPLATE.format(question=question, answer=answer)
         try:
             # Use a simple generation call, assuming the model can follow the format
             response = self.llm_interface.generate_response(prompt)
@@ -157,7 +128,7 @@ Follow-up Question:
             The generated follow-up question (str), or None if generation fails.
         """
         # logger.debug(f"Generating follow-up for Q: {question} A: {answer[:100]}...")
-        prompt = self.follow_up_prompt_template.format(question=question, answer=answer)
+        prompt = FOLLOW_UP_PROMPT_TEMPLATE.format(question=question, answer=answer)
         try:
             response = self.llm_interface.generate_response(prompt)
             # logger.debug(f"Follow-up LLM Raw Response: {response}")
