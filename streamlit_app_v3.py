@@ -352,44 +352,76 @@ if start_button and not st.session_state.is_running:
     if st.session_state.current_step == 'running_generator':
         st.rerun()
 
-# --- Main Chat Display Area --- #
-chat_container = st.container()
-# Define placeholders OUTSIDE the markdown div, but inside the container
-progress_bar_placeholder = st.empty()
-results_placeholder = st.empty()
+# --- Main UI Area (Chat Display) --- #
+# Create the container WITHOUT any placeholders above it
+chat_container = st.container(height=600, border=True)
 
+# Inject JavaScript for scrolling
+st.components.v1.html(auto_scroll_js, height=0, width=0)
+
+# Render messages directly inside this container
 with chat_container:
-    # Create the scrollable div using markdown
-    st.markdown("<div style=\"height: 600px; overflow-y: scroll; border: 1px solid #e0e0e0; padding: 10px; border-radius: 5px;\">", unsafe_allow_html=True)
-    
-    # Display existing chat history INSIDE the div
-    for message in st.session_state.chat_history:
-        role = message["role"]
-        content = message["content"]
-        bgcolor = AGENT_COLORS.get(role, AGENT_COLORS["DEFAULT"])
-        
-        # Use markdown with inline CSS for background color
-        st.markdown(
-            f'<div style="background-color: {bgcolor}; padding: 10px; border-radius: 5px; margin-bottom: 10px;">'
-            f'<b>{role}:</b><br>' # Use <br> for line break after role
-            f'{content.replace("\n", "<br>")}' # Replace newlines with <br>
-            f'</div>',
-            unsafe_allow_html=True
-        )
+    if not st.session_state.chat_history:
+        st.markdown("_Upload documents, set parameters, and click 'Start V3 Debate' to begin._")
+    else:
+        # Display messages from history
+        for message in st.session_state.chat_history:
+            role = message["role"]
+            content = message["content"]
 
-    # Placeholders are already defined outside this specific markdown block
-    # We might use them later, but don't redefine them here.
+            # Escape HTML content once
+            import html
+            escaped_content = html.escape(content).replace("\n", "<br>")
 
-    # Close the div
-    st.markdown("</div>", unsafe_allow_html=True)
+            if role == SYSTEM_NAME:
+                # Render System messages directly with custom style (no avatar/placeholder)
+                display_content = f"-- {escaped_content} --"
+                style = f"background-color: transparent; color: white; text-align: center; width: 90%; margin-left: auto; margin-right: auto; padding: 5px; border-radius: 8px; margin-bottom: 2px; word-wrap: break-word;"
+                st.markdown(f'<div style="{style}">{display_content}</div>', unsafe_allow_html=True)
+            else:
+                # Render other agent messages using st.chat_message with avatars
+                avatar = "👤" # Default
+                if role == ORCHESTRATOR_NAME: avatar = "🤖"
+                elif role == QUESTION_AGENT_NAME: avatar = "❓"
+                elif role.startswith(ANSWER_AGENT_NAME): avatar = "📝"
+                elif role == SYNTHESIZER_NAME: avatar = "✨"
+                
+                with st.chat_message(name=role, avatar=avatar):
+                    # Determine background color based on role
+                    base_role = role
+                    if role.startswith(ANSWER_AGENT_NAME):
+                        base_role = ANSWER_AGENT_NAME
+                    color = AGENT_COLORS.get(base_role, AGENT_COLORS["DEFAULT"])
+                    
+                    # Define base style
+                    style = f"color: #333; padding: 10px; border-radius: 8px; margin-bottom: 5px; word-wrap: break-word;"
+                    
+                    # Apply role-specific alignment and width
+                    if role.startswith(ANSWER_AGENT_NAME):
+                        # Answer Agent(s): RIGHT-aligned box
+                        style += f" background-color: {color}; width: 70%; margin-left: auto; margin-right: 0;"
+                    else:
+                        # Other agents (Question, Orchestrator, Synthesizer): LEFT-aligned box
+                        style += f" background-color: {color}; width: 70%; margin-right: auto; margin-left: 0;"
+                    
+                    # Apply the combined style within the chat message
+                    st.markdown(f'<div style="{style}">{escaped_content}</div>', unsafe_allow_html=True)
+
+# Add a small empty space after the container
+st.markdown("")
 
 # --- Generator Processing --- #
 if st.session_state.current_step == 'running_generator' and st.session_state.workflow_generator:
     try:
-        # Process one step from the generator
+        # Process one step from the generator at a time
         speaker, message = next(st.session_state.workflow_generator)
         add_chat_message(speaker, message)
-        st.rerun() # Rerun to display the new message
+        
+        # Add a small delay to make message sequence visible (optional)
+        time.sleep(0.2)
+        
+        # Force a rerun to display the message immediately and get the next message
+        st.rerun()
 
     except StopIteration:
         add_chat_message(SYSTEM_NAME, "Workflow finished successfully.")
@@ -416,7 +448,7 @@ if st.session_state.current_step == 'finished':
     # Optionally display a summary or link to the output file
     output_file = os.path.join("data", "output", st.session_state.output_file_path_config)
     if os.path.exists(output_file):
-        results_placeholder.info(f"Final results saved to: {output_file}")
+        st.info(f"Final results saved to: {output_file}")
 
 elif st.session_state.current_step == 'error':
     st.error(f"Workflow stopped due to an error: {st.session_state.error_message or 'Unknown error'}")

@@ -100,14 +100,15 @@ class OrchestratorV3:
             initial_questions = self.question_agent.generate_questions(
                 question_doc_path, self.num_initial_questions
             )
+            
+            # Yield each question individually
             if initial_questions:
-                questions_list_str = "\n".join([f"- {q}" for q in initial_questions])
-                yield SPEAKER_QUESTION_AGENT, f"Generated {len(initial_questions)} initial questions:\n{questions_list_str}"
+                yield SPEAKER_QUESTION_AGENT, f"Generated {len(initial_questions)} initial questions:"
+                for q_idx, q in enumerate(initial_questions):
+                    yield SPEAKER_QUESTION_AGENT, f"Question {q_idx+1}: {q}"
             else:
                  yield SPEAKER_QUESTION_AGENT, "Warning: No initial questions were generated."
                  logger.warning("Question Agent returned no initial questions.")
-                 # No need to exit, maybe user wants to proceed with 0 questions?
-                 # Consider if this case needs explicit handling or stopping.
         except Exception as e:
             err_msg = f"Error generating initial questions: {e}"
             logger.error(err_msg, exc_info=True)
@@ -146,26 +147,31 @@ class OrchestratorV3:
             # --- T6.5.6: Round 0 - Get Initial Answers --- 
             yield SPEAKER_ORCHESTRATOR, "--- Round 0: Gathering Initial Answers ---"
             initial_answers_current_q = [] # Temp storage for this question
+            
+            # Process each agent independently, yielding after each response
             for agent_idx, answer_agent in enumerate(self.answer_agents):
                 agent_name = f"{SPEAKER_ANSWER_AGENT} {agent_idx + 1}" # e.g., "Answer Agent V3 1"
                 doc_path = answer_doc_paths[agent_idx]
                 doc_name = os.path.basename(doc_path)
+                
+                # Yield BEFORE getting answer
                 yield SPEAKER_ORCHESTRATOR, f"Asking {agent_name} (using {doc_name})..."
                 
                 try:
                     # Use the ask_question method for the initial answer
                     answer = answer_agent.ask_question(question, doc_path)
                     initial_answers_current_q.append(answer) # Store raw answer
+                    
                     # Add to history with round 0
                     history_entry = (agent_name, 0, answer)
                     debate_history.append(history_entry)
+                    
                     # Yield formatted message for UI
                     yield agent_name, f"Initial Answer (R0): {answer}"
                 except FileNotFoundError:
                     err_msg = f"Error for {agent_name}: Report file not found at {doc_path}"
                     logger.error(err_msg)
                     yield SPEAKER_SYSTEM, err_msg
-                    # Add error indication to history? Or skip agent?
                     debate_history.append((agent_name, 0, f"Error: File Not Found - {doc_name}"))
                 except ContextLengthError as cle:
                     err_msg = f"Error for {agent_name} (R0): Context Length Error - {cle}"
@@ -178,21 +184,17 @@ class OrchestratorV3:
                     yield SPEAKER_SYSTEM, err_msg
                     debate_history.append((agent_name, 0, f"Error: Failed to generate initial answer - {doc_name}"))
             
-            # Check if any agent failed critically (e.g., file not found, maybe skip debate?)
-            # For now, proceed even if some agents errored in Round 0.
-            
             # --- T6.5.7: Debate Rounds Loop (1 to max_debate_rounds) --- 
             for round_num in range(1, self.max_debate_rounds + 1):
                 yield SPEAKER_ORCHESTRATOR, f"--- Starting Debate Round {round_num}/{self.max_debate_rounds} ---"
                 
-                # Store responses for this round before adding to history might be cleaner
-                # but adding immediately is simpler for now.
-                # current_round_responses = [] 
-                
+                # Process each agent individually within the round
                 for agent_idx, answer_agent in enumerate(self.answer_agents):
                     agent_name = f"{SPEAKER_ANSWER_AGENT} {agent_idx + 1}"
                     doc_path = answer_doc_paths[agent_idx]
                     doc_name = os.path.basename(doc_path)
+                    
+                    # Yield BEFORE getting response
                     yield SPEAKER_ORCHESTRATOR, f"Polling {agent_name} (using {doc_name}) for Round {round_num}..."
                     
                     # Need document content for participate_in_debate
@@ -215,14 +217,15 @@ class OrchestratorV3:
                             document_content=document_content,
                             current_round=round_num
                         )
+                        
                         # Add response to history immediately
                         history_entry = (agent_name, round_num, response)
                         debate_history.append(history_entry)
+                        
                         # Yield formatted message for UI
                         yield agent_name, f"Round {round_num}: {response}"
                         
                     except FileNotFoundError:
-                        # This should ideally be caught in Round 0, but handle defensively
                         err_msg = f"Error for {agent_name}: Report file not found at {doc_path} during round {round_num}."
                         logger.error(err_msg)
                         yield SPEAKER_SYSTEM, err_msg
@@ -237,49 +240,31 @@ class OrchestratorV3:
                         logger.error(err_msg, exc_info=True)
                         yield SPEAKER_SYSTEM, err_msg
                         debate_history.append((agent_name, round_num, f"Error: Failed to generate response - {doc_name}"))
-
-                # End of agent loop for the current round
-            # End of debate rounds loop
             
             # --- T6.5.8: Final Synthesis --- 
             yield SPEAKER_ORCHESTRATOR, f"--- Synthesizing Final Answer for Question {i+1} ---"
+            
             final_answer_for_q = "Error: Failed to synthesize final answer." # Default error
             try:
                 # Pass the full history to the synthesis method
                 final_answer_for_q = self._synthesize_final_answer_v3(question, debate_history)
                 yield SPEAKER_SYNTHESIZER, final_answer_for_q
+                
+                # Update the output file with this Q&A pair
+                self._write_output(question, debate_history, final_answer_for_q)
+                yield SPEAKER_SYSTEM, f"Results for Question {i+1} written to output file."
+                
+                # Add separator between questions
+                if i < len(initial_questions) - 1:
+                    yield SPEAKER_SYSTEM, "-------------------------------------------"
+                
             except Exception as e:
-                err_msg = f"Error during final answer synthesis for question {i+1}: {e}"
+                err_msg = f"Error during final synthesis or output writing: {e}"
                 logger.error(err_msg, exc_info=True)
                 yield SPEAKER_SYSTEM, err_msg
-                # final_answer_for_q remains the default error message
-
-            # --- T6.5.9: Write Output --- 
-            try:
-                # Pass the history to the updated write method
-                self._write_output(question, debate_history, final_answer_for_q)
-                # Optional: yield confirmation message? 
-                # yield SPEAKER_SYSTEM, f"Result for question {i+1} written to {self.output_file_path}"
-            except Exception as e:
-                 # Log error, but don't stop the whole process if one write fails
-                 logger.error(f"Error writing output for question {i+1} to {self.output_file_path}: {e}", exc_info=True)
-                 yield SPEAKER_SYSTEM, f"Warning: Failed to write result for question {i+1} to output file."
-
-            # --- End Inner Loop Steps --- 
-            # TODO T6.5.9: Implement output writing
-            
-            # Placeholder answer for now
-            final_results.append((question, final_answer_for_q))
-            # --- End Inner Loop Placeholder --- 
-
-        # --- T6.5.10: Final Completion Message --- 
-        yield SPEAKER_SYSTEM, "--- V3 Debate Workflow Complete ---"
-        logger.info("OrchestratorV3 finished successfully.")
         
-        # --- Placeholder for actual completion --- 
-        # yield SPEAKER_SYSTEM, f"(Placeholder) Need to implement logic for {self.num_initial_questions} questions and {self.max_debate_rounds} debate rounds."
-        # # Simulate finishing
-        # yield SPEAKER_SYSTEM, "OrchestratorV3 finished (Placeholder)"
+        # All questions processed
+        yield SPEAKER_SYSTEM, f"Multi-round debate complete. Results saved to {self.output_file_path}"
         
     # --- Helper methods (e.g., for synthesis, output writing) will be added here --- 
     def _synthesize_final_answer_v3(self, question: str, debate_history: List[Tuple[str, int, str]]) -> str:
